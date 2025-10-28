@@ -1,0 +1,972 @@
+"""
+AI视觉异常检测管理面板 - iOS风格
+用于训练数据管理、实时监控、告警查看
+"""
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+import sys
+import cv2
+from PIL import Image
+import sqlite3
+from datetime import datetime
+
+# 添加项目根目录到路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from modules.vision_ai.behavior_detector import BehaviorDetector
+from modules.vision_ai.camera_manager import CameraManager
+
+# 导入iOS风格
+sys.path.insert(0, str(Path(__file__).parent))
+from ios_style import apply_ios_style, ios_card, ios_badge, ios_divider, IOS_ICONS, IOS_COLORS
+
+# 页面配置
+st.set_page_config(
+    page_title="📷 AI视觉检测",
+    page_icon="📷",
+    layout="wide"
+)
+
+# 应用iOS风格
+apply_ios_style()
+
+# 标题
+st.markdown(f"""
+<div style="text-align: center; padding: 2rem 0 1rem 0;">
+    <h1 style="font-size: 3rem; margin: 0; background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%); 
+               -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700;">
+        {IOS_ICONS['camera']} AI视觉异常检测系统
+    </h1>
+    <p style="color: #000000; margin-top: 0.5rem; font-size: 1.1rem; font-weight: 500;">
+        AI-Powered Visual Anomaly Detection System
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# 初始化检测器（移除缓存避免更新问题）
+def get_detector():
+    return BehaviorDetector()
+
+def get_camera_manager():
+    return CameraManager()
+
+# 每次重新创建，确保使用最新代码
+detector = get_detector()
+camera_mgr = get_camera_manager()
+
+# 侧边栏导航 - iOS风格
+st.sidebar.markdown(f"""
+<div style="text-align: center; padding: 1.5rem 0 1rem 0;">
+    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">{IOS_ICONS['camera']}</div>
+    <h1 style="margin: 0; font-size: 1.5rem; color: #000000; font-weight: 600;">AI视觉检测</h1>
+</div>
+""", unsafe_allow_html=True)
+
+page = st.sidebar.radio(
+    "选择功能模块",
+    [
+        f"{IOS_ICONS['camera']} 训练数据管理",
+        f"{IOS_ICONS['star']} 自定义行为类型",
+        f"{IOS_ICONS['device']} 摄像头管理",
+        f"{IOS_ICONS['eye']} 视频分析",
+        f"{IOS_ICONS['alarm']} 实时告警",
+        f"{IOS_ICONS['chart']} 统计分析",
+        f"{IOS_ICONS['settings']} 模型设置"
+    ]
+)
+
+
+# ========== 页面1：训练数据管理 ==========
+
+if "训练数据管理" in page:
+    ios_divider("训练数据管理")
+    st.header("📸 训练数据管理")
+    st.markdown("上传不同类型的行为**图片或视频**，训练AI模型识别异常")
+    
+    tabs = st.tabs(["📁 上传图片", "🎬 上传视频", "📊 查看训练数据"])
+    
+    # 获取所有行为类型
+    all_behaviors = detector.get_all_behaviors()
+    behavior_options = [(b['code'], f"{b['name']} {'🔧' if b.get('custom') else ''}") for b in all_behaviors]
+    
+    # Tab 1: 上传训练图片
+    with tabs[0]:
+        st.subheader("📤 上传训练图片")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            behavior_type = st.selectbox(
+                "选择行为类型*",
+                behavior_options,
+                format_func=lambda x: x[1],
+                help="🔧 表示自定义类型"
+            )
+        
+        with col2:
+            st.info(f"""
+            **上传指南：**
+            - 支持格式：JPG, PNG, BMP
+            - 建议每种行为至少50张图片
+            - 图片应包含清晰的人物动作
+            """)
+        
+        # 方式1：批量上传文件
+        st.markdown("### 方式1：上传图片文件")
+        uploaded_files = st.file_uploader(
+            "选择图片（可多选）",
+            type=['jpg', 'jpeg', 'png', 'bmp'],
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files and st.button("📥 开始导入"):
+            # 保存上传的文件
+            save_dir = Path(f"data/training/{behavior_type[0]}")
+            save_dir.mkdir(parents=True, exist_ok=True)
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, uploaded_file in enumerate(uploaded_files):
+                # 保存文件
+                file_path = save_dir / uploaded_file.name
+                with open(file_path, 'wb') as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                progress = (i + 1) / len(uploaded_files)
+                progress_bar.progress(progress)
+                status_text.text(f"已保存 {i+1}/{len(uploaded_files)} 张图片")
+            
+            # 导入到数据库
+            result = detector.import_training_images(str(save_dir), behavior_type[0])
+            
+            st.success(f"✅ 成功导入 {result['imported_count']} 张图片！")
+        
+        # 方式2：指定文件夹路径
+        st.markdown("### 方式2：从文件夹导入")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            folder_path = st.text_input(
+                "输入文件夹路径",
+                placeholder="例如：/Users/yourname/Pictures/normal_swipe"
+            )
+        with col2:
+            if st.button("📂 导入文件夹"):
+                if folder_path:
+                    with st.spinner("正在导入..."):
+                        result = detector.import_training_images(folder_path, behavior_type[0])
+                    
+                    if result['status'] == 'success':
+                        st.success(f"✅ 成功导入 {result['imported_count']}/{result['total_files']} 张图片！")
+                    else:
+                        st.error(f"❌ 导入失败：{result.get('message', '未知错误')}")
+    
+    # Tab 2: 上传视频
+    with tabs[1]:
+        st.subheader("🎬 上传训练视频")
+        st.markdown("**视频更适合识别动态行为！** 系统会自动提取关键帧用于训练")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            video_behavior_type = st.selectbox(
+                "选择行为类型*",
+                behavior_options,
+                format_func=lambda x: x[1],
+                help="🔧 表示自定义类型",
+                key="video_behavior"
+            )
+        
+        with col2:
+            extract_fps = st.slider(
+                "提取帧率（每秒提取帧数）",
+                1, 10, 2,
+                help="帧率越高，提取的训练图片越多，但处理时间更长"
+            )
+        
+        st.info(f"""
+        **视频上传指南：**
+        - 支持格式：MP4, AVI, MOV, MKV, GIF
+        - 建议视频时长：3-30秒
+        - 包含完整的动作过程（如完整的尾随过程）
+        - 系统会自动提取关键帧保存为图片
+        """)
+        
+        # 方式1：上传视频文件
+        st.markdown("### 方式1：上传视频文件")
+        uploaded_videos = st.file_uploader(
+            "选择视频（可多选）",
+            type=['mp4', 'avi', 'mov', 'mkv', 'gif'],
+            accept_multiple_files=True,
+            key="video_uploader"
+        )
+        
+        if uploaded_videos and st.button("🎬 开始处理视频", key="process_videos"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            total_frames = 0
+            
+            for i, uploaded_video in enumerate(uploaded_videos):
+                status_text.text(f"正在处理 {uploaded_video.name}...")
+                
+                # 保存视频
+                video_dir = Path("data/training/videos") / video_behavior_type[0]
+                video_dir.mkdir(parents=True, exist_ok=True)
+                video_path = video_dir / uploaded_video.name
+                
+                with open(video_path, 'wb') as f:
+                    f.write(uploaded_video.getbuffer())
+                
+                # 提取帧
+                result = detector.import_training_videos(
+                    str(video_path),
+                    video_behavior_type[0],
+                    extract_fps=extract_fps
+                )
+                
+                if result['status'] == 'success':
+                    total_frames += result['frames_extracted']
+                    st.success(f"✅ {uploaded_video.name}: 提取 {result['frames_extracted']} 帧 (时长 {result['video_duration']:.1f}秒)")
+                else:
+                    st.error(f"❌ {uploaded_video.name}: {result.get('message')}")
+                
+                progress = (i + 1) / len(uploaded_videos)
+                progress_bar.progress(progress)
+            
+            st.success(f"🎉 视频处理完成！共提取 {total_frames} 帧训练数据")
+        
+        # 方式2：指定视频路径
+        st.markdown("### 方式2：从文件夹导入视频")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            video_folder_path = st.text_input(
+                "输入视频文件夹路径",
+                placeholder="例如：/Users/yourname/Videos/force_door",
+                key="video_folder"
+            )
+        with col2:
+            if st.button("📂 批量处理视频", key="batch_process"):
+                if video_folder_path:
+                    video_path = Path(video_folder_path)
+                    if video_path.exists():
+                        video_files = list(video_path.glob("*.mp4")) + \
+                                    list(video_path.glob("*.avi")) + \
+                                    list(video_path.glob("*.mov"))
+                        
+                        if video_files:
+                            progress_bar = st.progress(0)
+                            total_frames = 0
+                            
+                            for i, vf in enumerate(video_files):
+                                result = detector.import_training_videos(
+                                    str(vf),
+                                    video_behavior_type[0],
+                                    extract_fps=extract_fps
+                                )
+                                
+                                if result['status'] == 'success':
+                                    total_frames += result['frames_extracted']
+                                
+                                progress = (i + 1) / len(video_files)
+                                progress_bar.progress(progress)
+                            
+                            st.success(f"✅ 处理 {len(video_files)} 个视频，提取 {total_frames} 帧")
+                        else:
+                            st.warning("未找到视频文件")
+                    else:
+                        st.error("文件夹不存在")
+    
+    # Tab 3: 查看训练数据
+    with tabs[2]:
+        st.subheader("📊 训练数据统计")
+        
+        stats = detector.get_training_stats()
+        
+        col1, col2, col3 = st.columns(3)
+        
+        behavior_names = {
+            'normal_swipe': '✅ 正常刷卡',
+            'force_door': '⚠️ 强行拉门',
+            'block_door': '🚪 抵门动作',
+            'tailgating': '👥 尾随他人',
+            'loitering': '🚶 徘徊',
+            'unknown': '❓ 未知行为'
+        }
+        
+        for idx, (behavior_type, count) in enumerate(stats.items()):
+            col = [col1, col2, col3][idx % 3]
+            with col:
+                st.metric(
+                    behavior_names.get(behavior_type, behavior_type),
+                    f"{count} 张"
+                )
+        
+        # 数据准备度评估
+        st.markdown("### 🎯 数据准备度评估")
+        
+        total_images = sum(stats.values())
+        min_required = 50  # 每类至少50张
+        
+        if total_images == 0:
+            st.warning("⚠️ 还没有训练数据，请先上传图片")
+        elif total_images < min_required * 4:
+            st.info(f"📝 建议每种行为至少{min_required}张图片以获得更好的识别效果")
+        else:
+            st.success("✅ 训练数据充足，可以开始训练模型")
+            
+            if st.button("🚀 开始训练模型 (即将上线)"):
+                st.info("深度学习模型训练功能即将上线，目前使用基于规则的检测")
+
+
+# ========== 页面2：自定义行为类型 ==========
+
+elif page == "🎯 自定义行为类型":
+    st.header("🎯 自定义行为类型管理")
+    st.markdown("**添加自己需要识别的行为类型**，不局限于预设的几种")
+    
+    tabs = st.tabs(["➕ 添加新类型", "📋 已有类型"])
+    
+    # Tab 1: 添加新类型
+    with tabs[0]:
+        st.subheader("➕ 添加新的行为类型")
+        
+        with st.form("add_behavior_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                behavior_code = st.text_input(
+                    "行为代码*（英文，用下划线）",
+                    placeholder="例如：running_in_corridor",
+                    help="使用英文和下划线，如：smoking_in_area"
+                )
+                
+                alert_level = st.selectbox(
+                    "告警级别",
+                    [("low", "🟢 低"), ("medium", "🟡 中"), ("high", "🟠 高"), ("critical", "🔴 严重")],
+                    index=1,
+                    format_func=lambda x: x[1]
+                )
+            
+            with col2:
+                behavior_name = st.text_input(
+                    "行为名称*（中文）",
+                    placeholder="例如：走廊奔跑",
+                    help="用于显示的中文名称"
+                )
+                
+                color = st.color_picker(
+                    "显示颜色",
+                    value="#FFA500",
+                    help="在界面中显示的颜色"
+                )
+            
+            description = st.text_area(
+                "行为描述",
+                placeholder="详细描述这种行为的特征...",
+                height=100
+            )
+            
+            submitted = st.form_submit_button("✅ 添加行为类型", use_container_width=True)
+            
+            if submitted and behavior_code and behavior_name:
+                result = detector.add_custom_behavior(
+                    behavior_code=behavior_code,
+                    behavior_name=behavior_name,
+                    description=description,
+                    alert_level=alert_level[0],
+                    color=color
+                )
+                
+                if result['status'] == 'success':
+                    st.success(f"✅ {result['message']}")
+                    st.info("💡 现在可以在「训练数据管理」中上传这种行为的视频或图片了！")
+                else:
+                    st.error(f"❌ {result['message']}")
+        
+        # 示例参考
+        st.markdown("---")
+        st.subheader("💡 示例参考")
+        st.markdown("""
+        **常见的自定义行为类型：**
+        
+        | 行为代码 | 行为名称 | 描述 | 告警级别 |
+        |---------|---------|------|---------|
+        | `running_in_corridor` | 走廊奔跑 | 在走廊区域奔跑 | 中 |
+        | `smoking_indoors` | 室内吸烟 | 在禁烟区域吸烟 | 高 |
+        | `climbing_fence` | 翻越围栏 | 试图翻越围栏 | 严重 |
+        | `package_left_unattended` | 可疑物品遗留 | 长时间遗留的物品 | 高 |
+        | `unauthorized_parking` | 非法停车 | 在禁止区域停车 | 中 |
+        | `gathering_at_door` | 门口聚集 | 多人在门口聚集 | 低 |
+        | `phone_while_driving` | 驾驶使用手机 | 开车时使用手机 | 高 |
+        """)
+    
+    # Tab 2: 已有类型
+    with tabs[1]:
+        st.subheader("📋 所有行为类型")
+        
+        all_behaviors = detector.get_all_behaviors()
+        
+        if not all_behaviors:
+            st.info("还没有自定义行为类型")
+        else:
+            # 分组显示
+            st.markdown("### 🔧 自定义类型")
+            custom_behaviors = [b for b in all_behaviors if b.get('custom', False)]
+            
+            if custom_behaviors:
+                for behavior in custom_behaviors:
+                    with st.expander(f"{behavior['name']} ({behavior['code']})"):
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.write(f"**代码:** `{behavior['code']}`")
+                            st.write(f"**名称:** {behavior['name']}")
+                        
+                        with col2:
+                            level_emoji = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}
+                            st.write(f"**告警级别:** {level_emoji.get(behavior['alert_level'], '⚪')} {behavior['alert_level']}")
+                            if behavior.get('color'):
+                                st.color_picker(
+                                    "颜色",
+                                    value=behavior['color'],
+                                    disabled=True,
+                                    key=f"color_{behavior['code']}"
+                                )
+                        
+                        with col3:
+                            if behavior.get('description'):
+                                st.write(f"**描述:** {behavior['description']}")
+            else:
+                st.info("还没有自定义类型，在上方添加吧！")
+            
+            st.markdown("---")
+            st.markdown("### 📌 预设类型")
+            preset_behaviors = [b for b in all_behaviors if not b.get('custom', False)]
+            
+            for behavior in preset_behaviors:
+                st.write(f"• **{behavior['name']}** (`{behavior['code']}`)")
+
+
+# ========== 页面3：摄像头管理 ==========
+
+elif page == "📹 摄像头管理":
+    st.header("📹 摄像头与录像系统管理")
+    st.markdown("**配置安讯士(Axis)摄像头和ExacqVision录像系统**")
+    
+    tabs = st.tabs(["📹 摄像头配置", "📼 ExacqVision服务器", "🔍 查看设备"])
+    
+    # Tab 1: 摄像头配置
+    with tabs[0]:
+        st.subheader("➕ 添加摄像头")
+        
+        camera_type_option = st.radio(
+            "摄像头类型",
+            ["安讯士(Axis)", "通用RTSP摄像头"],
+            horizontal=True
+        )
+        
+        if camera_type_option == "安讯士(Axis)":
+            with st.form("add_axis_camera"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    camera_name = st.text_input(
+                        "摄像头名称*",
+                        placeholder="例如：A区门禁摄像头"
+                    )
+                    ip_address = st.text_input(
+                        "IP地址*",
+                        placeholder="例如：192.168.1.100"
+                    )
+                    port = st.number_input(
+                        "端口",
+                        value=80,
+                        min_value=1,
+                        max_value=65535
+                    )
+                
+                with col2:
+                    location = st.text_input(
+                        "安装位置",
+                        placeholder="例如：A区入口"
+                    )
+                    username = st.text_input(
+                        "用户名",
+                        placeholder="admin"
+                    )
+                    password = st.text_input(
+                        "密码",
+                        type="password"
+                    )
+                
+                submitted = st.form_submit_button("✅ 添加摄像头", use_container_width=True)
+                
+                if submitted and camera_name and ip_address:
+                    result = camera_mgr.add_axis_camera(
+                        name=camera_name,
+                        ip_address=ip_address,
+                        username=username,
+                        password=password,
+                        port=port,
+                        location=location
+                    )
+                    
+                    if result['status'] == 'success':
+                        st.success(f"✅ {result['message']}")
+                        st.code(f"RTSP URL: {result['rtsp_url']}", language="text")
+                    else:
+                        st.error(f"❌ {result['message']}")
+        
+        else:  # 通用RTSP摄像头
+            with st.form("add_rtsp_camera"):
+                camera_name = st.text_input(
+                    "摄像头名称*",
+                    placeholder="例如：B区监控摄像头"
+                )
+                
+                rtsp_url = st.text_input(
+                    "RTSP流地址*",
+                    placeholder="rtsp://username:password@192.168.1.101:554/stream"
+                )
+                
+                location = st.text_input(
+                    "安装位置",
+                    placeholder="例如：B区入口"
+                )
+                
+                submitted = st.form_submit_button("✅ 添加摄像头", use_container_width=True)
+                
+                if submitted and camera_name and rtsp_url:
+                    result = camera_mgr.add_generic_camera(
+                        name=camera_name,
+                        rtsp_url=rtsp_url,
+                        location=location
+                    )
+                    
+                    if result['status'] == 'success':
+                        st.success(f"✅ {result['message']}")
+                    else:
+                        st.error(f"❌ {result['message']}")
+    
+    # Tab 2: ExacqVision服务器
+    with tabs[1]:
+        st.subheader("➕ 添加ExacqVision录像服务器")
+        
+        st.info("""
+        **ExacqVision集成说明：**
+        - ExacqVision是专业的视频管理系统(VMS)
+        - 配置后可以直接访问历史录像
+        - 支持导出录像片段用于AI分析
+        """)
+        
+        with st.form("add_exacqvision"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                server_name = st.text_input(
+                    "服务器名称*",
+                    placeholder="例如：主录像服务器"
+                )
+                server_ip = st.text_input(
+                    "服务器IP*",
+                    placeholder="例如：192.168.1.200"
+                )
+            
+            with col2:
+                server_port = st.number_input(
+                    "端口",
+                    value=80,
+                    min_value=1,
+                    max_value=65535
+                )
+                server_username = st.text_input(
+                    "用户名*",
+                    placeholder="admin"
+                )
+            
+            server_password = st.text_input(
+                "密码*",
+                type="password"
+            )
+            
+            submitted = st.form_submit_button("✅ 添加服务器", use_container_width=True)
+            
+            if submitted and server_name and server_ip and server_username and server_password:
+                result = camera_mgr.add_exacqvision_server(
+                    server_name=server_name,
+                    server_ip=server_ip,
+                    username=server_username,
+                    password=server_password,
+                    port=server_port
+                )
+                
+                if result['status'] == 'success':
+                    st.success(f"✅ {result['message']}")
+                    st.info("💡 现在可以在「视频分析」中选择从ExacqVision导入录像")
+                else:
+                    st.error(f"❌ {result['message']}")
+    
+    # Tab 3: 查看设备
+    with tabs[2]:
+        st.subheader("📹 已配置的摄像头")
+        
+        cameras = camera_mgr.get_all_cameras()
+        
+        if not cameras:
+            st.info("还没有配置摄像头")
+        else:
+            for camera in cameras:
+                with st.expander(f"📹 {camera['name']} ({camera['type']})"):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**名称:** {camera['name']}")
+                        st.write(f"**类型:** {camera['type']}")
+                        if camera.get('ip'):
+                            st.write(f"**IP:** {camera['ip']}")
+                    
+                    with col2:
+                        if camera.get('location'):
+                            st.write(f"**位置:** {camera['location']}")
+                        st.write(f"**状态:** {'🟢 活动' if camera['status'] == 'active' else '🔴 禁用'}")
+                    
+                    with col3:
+                        if st.button("🔗 测试连接", key=f"test_{camera['id']}"):
+                            result = camera_mgr.test_camera_connection(camera['id'])
+                            if result['status'] == 'success':
+                                st.success(result['message'])
+                            else:
+                                st.error(result['message'])
+                    
+                    if camera.get('rtsp_url'):
+                        st.code(f"RTSP URL: {camera['rtsp_url']}", language="text")
+        
+        st.markdown("---")
+        st.subheader("📼 ExacqVision服务器")
+        
+        servers = camera_mgr.get_all_exacqvision_servers()
+        
+        if not servers:
+            st.info("还没有配置ExacqVision服务器")
+        else:
+            for server in servers:
+                with st.expander(f"📼 {server['name']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**名称:** {server['name']}")
+                        st.write(f"**IP:** {server['ip']}")
+                    
+                    with col2:
+                        st.write(f"**端口:** {server['port']}")
+                        st.write(f"**状态:** {'🟢 活动' if server['status'] == 'active' else '🔴 禁用'}")
+                    
+                    st.code(f"API端点: {server['api_endpoint']}", language="text")
+
+
+# ========== 页面4：视频分析 ==========
+
+elif page == "🎬 视频分析":
+    st.header("🎬 视频异常分析")
+    st.markdown("上传视频或指定视频文件，自动识别异常行为")
+    
+    analysis_mode = st.radio(
+        "选择分析模式",
+        ["上传视频文件", "摄像头实时分析"]
+    )
+    
+    if analysis_mode == "上传视频文件":
+        uploaded_video = st.file_uploader("选择视频文件", type=['mp4', 'avi', 'mov'])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            frame_skip = st.slider("跳帧数（提高分析速度）", 1, 30, 5)
+        with col2:
+            confidence_threshold = st.slider("告警置信度阈值", 0.0, 1.0, 0.7)
+        
+        if uploaded_video and st.button("🔍 开始分析"):
+            # 保存上传的视频
+            video_path = Path("data/vision_ai/uploads") / uploaded_video.name
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(video_path, 'wb') as f:
+                f.write(uploaded_video.getbuffer())
+            
+            st.info(f"视频已保存: {video_path}")
+            
+            # 创建告警容器
+            alert_container = st.empty()
+            alerts_list = []
+            
+            def on_alert(alert):
+                alerts_list.append(alert)
+                with alert_container.container():
+                    st.warning(f"🚨 {alert['message']}")
+                    st.write(f"时间: {alert['timestamp']}")
+                    if Path(alert['image_path']).exists():
+                        st.image(alert['image_path'], caption="告警截图", width=400)
+            
+            # 分析视频
+            with st.spinner("正在分析视频..."):
+                try:
+                    detector.analyze_video_stream(
+                        str(video_path),
+                        alert_callback=on_alert,
+                        frame_skip=frame_skip
+                    )
+                    st.success(f"✅ 分析完成！共检测到 {len(alerts_list)} 个异常")
+                except Exception as e:
+                    st.error(f"❌ 分析失败：{str(e)}")
+    
+    else:  # 摄像头实时分析
+        st.info("📹 摄像头实时分析功能")
+        
+        camera_id = st.number_input("摄像头ID", 0, 10, 0)
+        
+        if st.button("🎥 启动实时监控"):
+            st.warning("实时监控功能需要在后台运行，请查看终端输出")
+            st.code(f"""
+# 在终端运行以下命令启动实时监控：
+cd /Users/sven/Cursor_Project/RMC_Digital
+source venv/bin/activate
+python -c "
+from modules.vision_ai.behavior_detector import BehaviorDetector
+detector = BehaviorDetector()
+detector.analyze_video_stream({camera_id})
+"
+            """, language="bash")
+
+
+# ========== 页面3：实时告警 ==========
+
+elif page == "🚨 实时告警":
+    st.header("🚨 实时告警监控")
+    
+    # 自动刷新
+    auto_refresh = st.checkbox("自动刷新（每10秒）", value=True)
+    
+    if auto_refresh:
+        st.write("⏱️ 自动刷新已启用")
+        # 注意：实际部署时使用 st.experimental_rerun 配合定时器
+    
+    # 获取最近告警
+    alerts = detector.get_recent_alerts(limit=20)
+    
+    if not alerts:
+        st.info("暂无告警记录")
+    else:
+        st.write(f"最近 {len(alerts)} 条告警：")
+        
+        for alert in alerts:
+            with st.expander(f"🚨 {alert['message']} - {alert['timestamp']}"):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    if alert['image_path'] and Path(alert['image_path']).exists():
+                        st.image(alert['image_path'], caption="告警截图", use_container_width=True)
+                    else:
+                        st.warning("图片不存在")
+                
+                with col2:
+                    st.markdown(f"""
+                    **告警详情**
+                    - **类型**: {alert['behavior_type']}
+                    - **状态**: {alert['status']}
+                    - **时间**: {alert['timestamp']}
+                    """)
+                    
+                    if alert['status'] == 'pending':
+                        if st.button("✅ 已处理", key=f"resolve_{alert['id']}"):
+                            # 更新状态
+                            conn = sqlite3.connect(detector.db_path)
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE alerts SET status = 'resolved' WHERE id = ?
+                            """, (alert['id'],))
+                            conn.commit()
+                            conn.close()
+                            st.success("状态已更新")
+                            st.rerun()
+
+
+# ========== 页面4：统计分析 ==========
+
+elif page == "📊 统计分析":
+    st.header("📊 统计分析")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # 查询统计数据
+    conn = sqlite3.connect(detector.db_path)
+    
+    with col1:
+        total_detections = pd.read_sql_query(
+            "SELECT COUNT(*) as count FROM detection_results", conn
+        ).iloc[0]['count']
+        st.metric("总检测次数", total_detections)
+    
+    with col2:
+        total_alerts = pd.read_sql_query(
+            "SELECT COUNT(*) as count FROM alerts", conn
+        ).iloc[0]['count']
+        st.metric("总告警数", total_alerts)
+    
+    with col3:
+        pending_alerts = pd.read_sql_query(
+            "SELECT COUNT(*) as count FROM alerts WHERE status = 'pending'", conn
+        ).iloc[0]['count']
+        st.metric("待处理告警", pending_alerts)
+    
+    with col4:
+        training_images = pd.read_sql_query(
+            "SELECT COUNT(*) as count FROM training_images", conn
+        ).iloc[0]['count']
+        st.metric("训练图片数", training_images)
+    
+    # 行为类型分布
+    st.subheader("异常行为类型分布")
+    
+    df_behavior = pd.read_sql_query("""
+        SELECT behavior_type, COUNT(*) as count
+        FROM detection_results
+        GROUP BY behavior_type
+        ORDER BY count DESC
+    """, conn)
+    
+    if not df_behavior.empty:
+        st.bar_chart(df_behavior.set_index('behavior_type'))
+    else:
+        st.info("暂无检测数据")
+    
+    # 最近检测记录
+    st.subheader("最近检测记录")
+    
+    df_recent = pd.read_sql_query("""
+        SELECT 
+            video_source,
+            frame_number,
+            behavior_type,
+            confidence,
+            timestamp
+        FROM detection_results
+        ORDER BY timestamp DESC
+        LIMIT 20
+    """, conn)
+    
+    if not df_recent.empty:
+        st.dataframe(df_recent, use_container_width=True)
+    else:
+        st.info("暂无检测记录")
+    
+    conn.close()
+
+
+# ========== 页面5：模型设置 ==========
+
+elif page == "⚙️ 模型设置":
+    st.header("⚙️ 模型设置")
+    
+    st.subheader("当前使用的检测方法")
+    
+    try:
+        from ultralytics import YOLO
+        st.success("✅ YOLOv8 已安装（推荐）")
+        use_yolo = True
+    except ImportError:
+        st.warning("⚠️ YOLOv8 未安装，使用OpenCV HOG检测器")
+        use_yolo = False
+        
+        st.markdown("""
+        **安装 YOLOv8 以获得更好的检测效果：**
+        ```bash
+        pip install ultralytics
+        ```
+        """)
+    
+    st.markdown("---")
+    
+    st.subheader("检测参数调整")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        confidence_threshold = st.slider(
+            "检测置信度阈值",
+            0.0, 1.0, 0.7,
+            help="只有置信度高于此值的检测才会触发告警"
+        )
+    
+    with col2:
+        frame_skip = st.slider(
+            "视频跳帧数",
+            1, 30, 5,
+            help="跳过的帧数越多，处理速度越快，但可能遗漏短暂的异常"
+        )
+    
+    st.info("💡 这些参数将在下次视频分析时生效")
+    
+    st.markdown("---")
+    
+    st.subheader("高级功能（规划中）")
+    
+    st.markdown("""
+    🚀 **即将上线的功能：**
+    
+    1. **深度学习模型训练**
+       - 使用上传的训练图片训练自定义分类模型
+       - 支持迁移学习，提高识别准确率
+    
+    2. **多摄像头联动**
+       - 同时监控多个摄像头
+       - 跨摄像头追踪可疑人员
+    
+    3. **智能告警策略**
+       - 根据时间、地点自动调整告警阈值
+       - 减少误报，提高准确性
+    
+    4. **与门禁系统集成**
+       - 关联刷卡记录，识别异常模式
+       - 自动生成调查报告
+    """)
+
+
+# ========== 侧边栏信息 ==========
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("💡 使用流程")
+st.sidebar.markdown("""
+**快速开始：**
+
+1. **准备数据**
+   - 上传不同行为的训练图片
+   - 每种行为建议50+张
+
+2. **测试检测**
+   - 上传测试视频
+   - 查看检测效果
+
+3. **实时监控**
+   - 连接摄像头
+   - 实时接收告警
+
+4. **持续优化**
+   - 根据反馈调整参数
+   - 补充训练数据
+""")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📚 行为类型说明")
+st.sidebar.markdown("""
+- ✅ **正常刷卡**: 正常刷卡进门
+- ⚠️ **强行拉门**: 未刷卡强行拉门
+- 🚪 **抵门**: 用身体抵住门
+- 👥 **尾随**: 跟随他人进入
+- 🚶 **徘徊**: 在门禁区域徘徊
+""")
+
+st.sidebar.markdown("---")
+st.sidebar.caption("© 2025 RMC Digital 智能安防系统")
+

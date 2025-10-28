@@ -1,0 +1,44 @@
+# Streamlit Cloud 部署依赖
+# 精简版 - 只包含必需的包
+
+# Web Framework
+streamlit>=1.28.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Database
+sqlite3  # Python 内置，但列出来表明需要
+
+# HTTP Requests
+requests>=2.31.0
+httpx>=0.25.0
+
+# Computer Vision (OpenCV)
+opencv-python>=4.8.0
+
+# Date/Time
+python-dateutil>=2.8.2
+
+# File Processing
+python-multipart>=0.0.6
+Pillow>=10.0.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Optional: AI/LLM (如果使用 DeepSeek)
+# openai>=1.0.0  # 取消注释如果需要
+
+# Optional: CrewAI (高级功能)
+# crewai>=0.1.0  # 取消注释如果需要
+

@@ -1,0 +1,401 @@
+{
+  "status": "success",
+  "monitor_timestamp": "2025-10-29T06:01:28.633270",
+  "data_period_days": 7,
+  "summary": {
+    "total_devices": 20,
+    "avg_health_score": 43.0,
+    "critical_devices": 0,
+    "poor_devices": 20,
+    "devices_need_maintenance": 20
+  },
+  "device_health": [
+    {
+      "device_id": "DOOR_001",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_002",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_003",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_004",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_005",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_006",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_007",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_008",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_009",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_010",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_011",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_012",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_013",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_014",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_015",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_016",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_017",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_018",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_019",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    },
+    {
+      "device_id": "DOOR_020",
+      "health_score": 43.0,
+      "uptime_ratio": 0.0,
+      "error_rate": 0.0,
+      "avg_response_time_ms": 100.0,
+      "days_since_maintenance": null,
+      "anomaly_patterns": [],
+      "status": "poor"
+    }
+  ],
+  "spare_parts_status": {
+    "error": "库存文件不存在"
+  },
+  "maintenance_recommendations": [
+    {
+      "device_id": "DOOR_001",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_002",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_003",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_004",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_005",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_006",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_007",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_008",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_009",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_010",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_011",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_012",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_013",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_014",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_015",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_016",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_017",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_018",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_019",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    },
+    {
+      "device_id": "DOOR_020",
+      "priority": "high",
+      "health_score": 43.0,
+      "recommended_actions": [
+        "排查频繁离线原因"
+      ],
+      "estimated_downtime_hours": 2
+    }
+  ],
+  "heatmap_path": "data/reports/device_health_heatmap_20251029.png",
+  "alerts": []
+}

@@ -1,0 +1,328 @@
+{
+  "name": "智能安防运营面板 MCP Server",
+  "version": "1.0.0",
+  "description": "基于MCP协议的安防运营Cherry Studio配置",
+  "server": {
+    "host": "localhost",
+    "port": 8765,
+    "protocol": "websocket",
+    "enable_cors": true,
+    "max_connections": 50
+  },
+  "models": {
+    "primary": {
+      "provider": "azure",
+      "model": "gpt-4",
+      "endpoint": "${AZURE_OPENAI_ENDPOINT}",
+      "api_key": "${AZURE_OPENAI_API_KEY}",
+      "deployment": "${AZURE_OPENAI_DEPLOYMENT}",
+      "temperature": 0.3,
+      "max_tokens": 2000
+    },
+    "vision": {
+      "provider": "azure",
+      "service": "computer-vision",
+      "endpoint": "${AZURE_VISION_ENDPOINT}",
+      "api_key": "${AZURE_VISION_KEY}",
+      "version": "2023-10-01"
+    },
+    "language": {
+      "provider": "azure",
+      "service": "text-analytics",
+      "endpoint": "${AZURE_LANGUAGE_ENDPOINT}",
+      "api_key": "${AZURE_LANGUAGE_KEY}",
+      "version": "2023-04-01"
+    }
+  },
+  "tools": [
+    {
+      "name": "alarm_query",
+      "type": "function",
+      "description": "查询报警数据和趋势分析",
+      "endpoint": "/api/v1/alarms/query",
+      "method": "POST",
+      "parameters": {
+        "date_range": {
+          "type": "object",
+          "description": "日期范围",
+          "properties": {
+            "start": {"type": "string", "format": "date"},
+            "end": {"type": "string", "format": "date"}
+          }
+        },
+        "alarm_types": {
+          "type": "array",
+          "description": "报警类型过滤",
+          "items": {"type": "string"}
+        },
+        "include_charts": {
+          "type": "boolean",
+          "description": "是否生成图表",
+          "default": true
+        }
+      }
+    },
+    {
+      "name": "risk_assessment",
+      "type": "function",
+      "description": "AI风险等级判定",
+      "endpoint": "/api/v1/risk/assess",
+      "method": "POST",
+      "parameters": {
+        "alarm_description": {
+          "type": "string",
+          "description": "报警描述信息"
+        },
+        "context": {
+          "type": "object",
+          "description": "上下文信息（时间、地点、设备）"
+        }
+      }
+    },
+    {
+      "name": "device_status",
+      "type": "function",
+      "description": "查询设备健康状态",
+      "endpoint": "/api/v1/devices/status",
+      "method": "GET",
+      "parameters": {
+        "device_ids": {
+          "type": "array",
+          "description": "设备ID列表",
+          "items": {"type": "string"}
+        },
+        "include_history": {
+          "type": "boolean",
+          "description": "包含历史数据",
+          "default": false
+        }
+      }
+    },
+    {
+      "name": "knowledge_search",
+      "type": "function",
+      "description": "搜索安防知识库",
+      "endpoint": "/api/v1/knowledge/search",
+      "method": "POST",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "搜索查询"
+        },
+        "top_k": {
+          "type": "integer",
+          "description": "返回结果数量",
+          "default": 5
+        }
+      }
+    },
+    {
+      "name": "submit_shielding_request",
+      "type": "function",
+      "description": "提交报警屏蔽申请",
+      "endpoint": "/api/v1/shielding/request",
+      "method": "POST",
+      "parameters": {
+        "device_id": {"type": "string"},
+        "reason": {"type": "string"},
+        "duration_hours": {"type": "integer"},
+        "requester": {"type": "string"}
+      }
+    },
+    {
+      "name": "patrol_kpi",
+      "type": "function",
+      "description": "查询巡检KPI数据",
+      "endpoint": "/api/v1/patrol/kpi",
+      "method": "GET",
+      "parameters": {
+        "period": {
+          "type": "string",
+          "enum": ["day", "week", "month"],
+          "default": "month"
+        },
+        "user_id": {
+          "type": "string",
+          "description": "特定用户ID（可选）"
+        }
+      }
+    },
+    {
+      "name": "video_analysis",
+      "type": "function",
+      "description": "提交视频截图异常分析",
+      "endpoint": "/api/v1/vision/analyze",
+      "method": "POST",
+      "parameters": {
+        "image_path": {"type": "string"},
+        "analysis_type": {
+          "type": "string",
+          "enum": ["motion", "person", "anomaly"],
+          "default": "anomaly"
+        }
+      }
+    },
+    {
+      "name": "generate_report",
+      "type": "function",
+      "description": "生成运营报告",
+      "endpoint": "/api/v1/reports/generate",
+      "method": "POST",
+      "parameters": {
+        "report_type": {
+          "type": "string",
+          "enum": ["daily", "weekly", "monthly", "custom"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["pdf", "excel", "json"],
+          "default": "pdf"
+        },
+        "date_range": {"type": "object"}
+      }
+    }
+  ],
+  "knowledge_base": {
+    "enabled": true,
+    "sources": [
+      {
+        "name": "公司安防政策",
+        "type": "documents",
+        "path": "./data/knowledge_base/policies",
+        "formats": ["pdf", "docx", "txt"]
+      },
+      {
+        "name": "国家安防标准",
+        "type": "documents",
+        "path": "./data/knowledge_base/standards",
+        "formats": ["pdf"]
+      },
+      {
+        "name": "操作流程SOP",
+        "type": "documents",
+        "path": "./data/knowledge_base/sop",
+        "formats": ["md", "pdf"]
+      },
+      {
+        "name": "历史案例库",
+        "type": "database",
+        "connection": "sqlite:///./data/cases.db",
+        "table": "security_cases"
+      }
+    ],
+    "embedding": {
+      "provider": "azure",
+      "model": "text-embedding-ada-002",
+      "dimensions": 1536
+    },
+    "vector_store": {
+      "type": "faiss",
+      "path": "./data/vector_store",
+      "index_name": "security_knowledge"
+    }
+  },
+  "ui_components": {
+    "dashboard": {
+      "layout": "responsive",
+      "theme": "dark",
+      "refresh_interval": 300,
+      "modules": [
+        {
+          "id": "alarm_trends",
+          "title": "报警趋势分析",
+          "type": "chart",
+          "position": {"row": 1, "col": 1, "width": 6, "height": 4},
+          "data_source": "/api/v1/alarms/trends"
+        },
+        {
+          "id": "device_health",
+          "title": "设备健康状态",
+          "type": "gauge_grid",
+          "position": {"row": 1, "col": 7, "width": 6, "height": 4},
+          "data_source": "/api/v1/devices/health"
+        },
+        {
+          "id": "risk_alerts",
+          "title": "风险警报",
+          "type": "list",
+          "position": {"row": 5, "col": 1, "width": 4, "height": 4},
+          "data_source": "/api/v1/risk/alerts"
+        },
+        {
+          "id": "patrol_heatmap",
+          "title": "巡检热力图",
+          "type": "heatmap",
+          "position": {"row": 5, "col": 5, "width": 4, "height": 4},
+          "data_source": "/api/v1/patrol/heatmap"
+        },
+        {
+          "id": "kpi_dashboard",
+          "title": "KPI仪表板",
+          "type": "metrics",
+          "position": {"row": 5, "col": 9, "width": 4, "height": 4},
+          "data_source": "/api/v1/kpi/summary"
+        },
+        {
+          "id": "knowledge_chat",
+          "title": "知识库助手",
+          "type": "chatbot",
+          "position": {"row": 9, "col": 1, "width": 6, "height": 5},
+          "config": {
+            "welcome_message": "您好！我是安防知识库助手，可以回答政策、流程、标准等问题。",
+            "placeholder": "请输入您的问题，如：门禁屏蔽流程是什么？"
+          }
+        },
+        {
+          "id": "access_control_form",
+          "title": "权限自助审核",
+          "type": "form",
+          "position": {"row": 9, "col": 7, "width": 6, "height": 5},
+          "config": {
+            "enable_ocr": true,
+            "ocr_endpoint": "/api/v1/ocr/scan"
+          }
+        }
+      ]
+    }
+  },
+  "notifications": {
+    "teams": {
+      "enabled": true,
+      "webhook_url": "${TEAMS_WEBHOOK_URL}",
+      "channels": {
+        "high_risk": "安防-高风险警报",
+        "maintenance": "设备-维护通知",
+        "daily_report": "运营-每日报告"
+      }
+    },
+    "email": {
+      "enabled": true,
+      "smtp_server": "${SMTP_SERVER}",
+      "smtp_port": 587,
+      "from_address": "${EMAIL_USER}",
+      "templates_path": "./templates/email"
+    }
+  },
+  "offline_mode": {
+    "enabled": true,
+    "cache_duration_days": 30,
+    "batch_import_schedule": "0 1 * * *",
+    "export_formats": ["pdf", "excel", "json"]
+  },
+  "security": {
+    "auth": {
+      "enabled": true,
+      "type": "jwt",
+      "token_expiry": 3600
+    },
+    "rbac": {
+      "enabled": true,
+      "roles": [
+        {"name": "admin", "permissions": ["*"]},
+        {"name": "operator", "permissions": ["view", "respond", "patrol"]},
+        {"name": "viewer", "permissions": ["view"]}
+      ]
+    }
+  }
+}
+
