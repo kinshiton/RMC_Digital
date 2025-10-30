@@ -32,12 +32,10 @@ except ImportError:
         """, unsafe_allow_html=True)
     
     def ios_card(title, value, subtitle, icon):
-        """简单的卡片组件 - 使用 Streamlit 原生组件"""
-        st.metric(
-            label=f"{icon} {title}",
-            value=value
-        )
-        st.caption(subtitle)
+        """简单的卡片组件 - 纯文本实现"""
+        st.markdown(f"**{icon} {title}**")
+        st.markdown(f"# {value}")
+        st.markdown(f"<small>{subtitle}</small>", unsafe_allow_html=True)
     
     def ios_divider():
         st.markdown("---")
