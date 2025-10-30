@@ -13,6 +13,7 @@ import sys
 # 添加模块路径
 sys.path.append(str(Path(__file__).parent.parent))
 from modules.knowledge_base import KnowledgeBase
+from modules.conversation_manager import ConversationManager
 
 # 页面配置
 st.set_page_config(
@@ -469,6 +470,14 @@ if 'kb' not in st.session_state:
         st.error(f"知识库初始化失败: {e}")
         st.session_state.kb = None
 
+# 初始化对话管理器
+if 'conv_manager' not in st.session_state:
+    try:
+        st.session_state.conv_manager = ConversationManager()
+    except Exception as e:
+        st.error(f"对话管理器初始化失败: {e}")
+        st.session_state.conv_manager = None
+
 # ===== 辅助函数 =====
 def render_message_with_code(content: str):
     """渲染消息内容，支持代码块格式化"""
@@ -512,36 +521,62 @@ def render_message_with_code(content: str):
                 st.code(part[2], language=part[1])
 
 def get_current_conversation():
-    """获取当前对话"""
+    """获取当前对话（从数据库）"""
     if not st.session_state.current_conversation_id:
         return None
-    for conv in st.session_state.conversations:
-        if conv['id'] == st.session_state.current_conversation_id:
-            return conv
-    return None
+    
+    cm = st.session_state.conv_manager
+    if not cm:
+        return None
+    
+    return cm.get_conversation(st.session_state.current_conversation_id)
 
 def create_new_conversation():
-    """创建新对话"""
-    new_id = len(st.session_state.conversations) + 1
-    new_conv = {
-        'id': new_id,
-        'title': '新对话',
-        'created_at': datetime.now(),
-        'messages': []
-    }
-    st.session_state.conversations.insert(0, new_conv)
+    """创建新对话（存入数据库）"""
+    cm = st.session_state.conv_manager
+    if not cm:
+        return
+    
+    new_id = cm.create_conversation("新对话")
     st.session_state.current_conversation_id = new_id
     st.rerun()
 
 def delete_conversation(conv_id):
-    """删除对话"""
-    st.session_state.conversations = [c for c in st.session_state.conversations if c['id'] != conv_id]
+    """删除对话（从数据库）"""
+    cm = st.session_state.conv_manager
+    if not cm:
+        return
+    
+    cm.delete_conversation(conv_id)
+    
     if st.session_state.current_conversation_id == conv_id:
         st.session_state.current_conversation_id = None
+    
     st.rerun()
 
+def add_qa_to_knowledge(question: str, answer: str, tags: str = ""):
+    """将问答对加入知识库"""
+    kb = st.session_state.kb
+    if not kb:
+        return False
+    
+    title = question[:50] + ("..." if len(question) > 50 else "")
+    content = f"问题：{question}\n\n回答：{answer}"
+    
+    try:
+        kb.add_text_knowledge(title, content, tags or "问答,审阅")
+        return True
+    except:
+        return False
+
 def group_conversations_by_time():
-    """按时间分组对话"""
+    """按时间分组对话（从数据库）"""
+    cm = st.session_state.conv_manager
+    if not cm:
+        return {}
+    
+    all_conversations = cm.get_all_conversations()
+    
     now = datetime.now()
     today = now.date()
     yesterday = (now - timedelta(days=1)).date()
@@ -554,52 +589,40 @@ def group_conversations_by_time():
         '更早': []
     }
     
-    for conv in st.session_state.conversations:
-        # 确保 created_at 是 datetime 对象
-        created_at = conv['created_at']
-        if isinstance(created_at, str):
+    for conv in all_conversations:
+        # 确保 updated_at 是 datetime 对象
+        updated_at = conv['updated_at']
+        if isinstance(updated_at, str):
             try:
-                created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
-                conv['created_at'] = created_at
+                updated_at = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S.%f')
             except:
-                created_at = datetime.now()
-                conv['created_at'] = created_at
+                try:
+                    updated_at = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                except:
+                    updated_at = datetime.now()
         
-        conv_date = created_at.date()
+        conv_date = updated_at.date()
         
         if conv_date == today:
             groups['今天'].append(conv)
         elif conv_date == yesterday:
             groups['昨天'].append(conv)
-        elif (now - created_at).days <= 7:
+        elif (now - updated_at).days <= 7:
             groups['7 天内'].append(conv)
-        elif (now - created_at).days <= 30:
+        elif (now - updated_at).days <= 30:
             groups['30 天内'].append(conv)
         else:
             groups['更早'].append(conv)
     
     return {k: v for k, v in groups.items() if v}
 
-def export_conversation(conv):
+def export_conversation(conv_id):
     """导出对话"""
-    content = f"GuardNova 对话记录\n"
-    content += f"标题：{conv['title']}\n"
+    cm = st.session_state.conv_manager
+    if not cm:
+        return ""
     
-    created_at = conv['created_at']
-    if isinstance(created_at, str):
-        try:
-            created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
-        except:
-            created_at = datetime.now()
-    
-    content += f"创建时间：{created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
-    content += f"{'='*50}\n\n"
-    
-    for msg in conv['messages']:
-        role = "用户" if msg['role'] == 'user' else "GuardNova"
-        content += f"{role}：\n{msg['content']}\n\n"
-    
-    return content
+    return cm.export_conversation_to_text(conv_id)
 
 # ===== 侧边栏 =====
 with st.sidebar:
@@ -651,7 +674,7 @@ with st.sidebar:
                         delete_conversation(conv['id'])
                 
                 # 导出按钮
-                export_text = export_conversation(conv)
+                export_text = export_conversation(conv['id'])
                 st.download_button(
                     "📥 导出",
                     data=export_text,
@@ -664,12 +687,15 @@ with st.sidebar:
                 created_at = conv['created_at']
                 if isinstance(created_at, str):
                     try:
-                        created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S.%f')
                     except:
-                        created_at = datetime.now()
+                        try:
+                            created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        except:
+                            created_at = datetime.now()
                 
                 st.caption(f"创建于：{created_at.strftime('%m-%d %H:%M')}")
-                st.caption(f"消息数：{len(conv['messages'])}")
+                st.caption(f"消息数：{conv['message_count']}")
 
 # ===== 知识库管理面板 (RAG 系统) =====
 if st.session_state.show_knowledge_manager:
@@ -869,12 +895,47 @@ if not st.session_state.show_knowledge_manager:
         # 显示对话
         st.markdown(f'<div class="top-bar"><div class="top-bar-title">{current_conv["title"]}</div></div>', unsafe_allow_html=True)
         
-        # 显示历史消息（支持代码格式化）
+        # 显示历史消息（支持代码格式化 + 加入知识库）
         if current_conv['messages']:
-            for message in current_conv['messages']:
+            for idx, message in enumerate(current_conv['messages']):
                 with st.chat_message(message["role"]):
                     # 使用代码渲染函数
                     render_message_with_code(message["content"])
+                    
+                    # AI 回答添加"加入知识库"按钮
+                    if message["role"] == "assistant" and idx > 0:
+                        # 获取对应的用户问题
+                        user_message = current_conv['messages'][idx-1] if idx > 0 else None
+                        
+                        if user_message and user_message["role"] == "user":
+                            with st.expander("✏️ 审阅并加入知识库"):
+                                st.caption("编辑此问答对，保存到知识库以供将来参考")
+                                
+                                edited_question = st.text_input(
+                                    "问题",
+                                    value=user_message["content"],
+                                    key=f"edit_q_{message.get('id', idx)}"
+                                )
+                                
+                                edited_answer = st.text_area(
+                                    "回答",
+                                    value=message["content"],
+                                    height=150,
+                                    key=f"edit_a_{message.get('id', idx)}"
+                                )
+                                
+                                tags = st.text_input(
+                                    "标签（可选）",
+                                    placeholder="例如：技术,问答,重要",
+                                    key=f"tags_{message.get('id', idx)}"
+                                )
+                                
+                                if st.button("💾 保存到知识库", key=f"save_kb_{message.get('id', idx)}"):
+                                    if add_qa_to_knowledge(edited_question, edited_answer, tags):
+                                        st.success("✅ 已添加到知识库！")
+                                        st.balloons()
+                                    else:
+                                        st.error("❌ 添加失败")
                     
                     # 显示附件
                     if 'attachments' in message and message['attachments']:
@@ -961,20 +1022,24 @@ if not st.session_state.show_knowledge_manager:
         st.session_state.is_generating = True
         
         # 创建对话（如果需要）
+        cm = st.session_state.conv_manager
+        if not cm:
+            st.error("对话管理器未初始化")
+            st.session_state.is_generating = False
+            st.rerun()
+            return
+        
         if not current_conv:
             create_new_conversation()
             current_conv = get_current_conversation()
         
-        # 添加用户消息
-        current_conv['messages'].append({
-            "role": "user",
-            "content": question_to_send
-        })
+        # 保存用户消息到数据库
+        cm.add_message(current_conv['id'], "user", question_to_send)
         
-        # 更新标题
-        if len(current_conv['messages']) == 1:
+        # 更新标题（如果是第一条消息）
+        if current_conv and len(current_conv.get('messages', [])) == 0:
             auto_title = question_to_send[:20] + ("..." if len(question_to_send) > 20 else "")
-            current_conv['title'] = auto_title
+            cm.update_conversation_title(current_conv['id'], auto_title)
         
         # 调用 AI (集成 RAG 知识库)
         try:
@@ -1090,8 +1155,8 @@ if not st.session_state.show_knowledge_manager:
                                 elif item['content_type'] == 'url' and item.get('external_url'):
                                     st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
             
-            # 添加 AI 回复
-            current_conv['messages'].append({"role": "assistant", "content": full_response})
+            # 保存 AI 回复到数据库
+            cm.add_message(current_conv['id'], "assistant", full_response)
             
             # 重置生成状态
             st.session_state.is_generating = False
@@ -1099,6 +1164,10 @@ if not st.session_state.show_knowledge_manager:
             
         except Exception as e:
             st.session_state.is_generating = False
+            error_msg = f"抱歉，出现错误：{str(e)}"
+            
+            # 保存错误消息到数据库
+            cm.add_message(current_conv['id'], "assistant", error_msg)
+            
             st.error(f"❌ {str(e)}")
-            current_conv['messages'].append({"role": "assistant", "content": f"抱歉，出现错误：{str(e)}"})
             st.rerun()
