@@ -43,6 +43,24 @@ section[data-testid="stSidebar"] * {
     color: white !important;
 }
 
+/* 侧边栏展开框样式 - 使用渐变背景 */
+section[data-testid="stSidebar"] .streamlit-expanderHeader {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border-radius: 10px;
+}
+
+section[data-testid="stSidebar"] .streamlit-expanderContent {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%) !important;
+    border-radius: 0 0 10px 10px;
+    padding: 1rem;
+}
+
+section[data-testid="stSidebar"] [data-testid="stExpander"] {
+    background: transparent !important;
+    border: none !important;
+}
+
 /* 聊天消息样式 */
 .stChatMessage {
     background-color: #f8f9fa;
@@ -85,6 +103,54 @@ header {visibility: visible;}
 .stTabs [aria-selected="true"] {
     background-color: #667eea;
     color: white;
+}
+
+/* Success 消息样式 - 白色文字 */
+.stSuccess {
+    background-color: rgba(52, 199, 89, 0.2) !important;
+    color: white !important;
+    border-left: 4px solid #34C759 !important;
+    border-radius: 10px !important;
+}
+
+.stSuccess > div {
+    color: white !important;
+}
+
+.stSuccess p {
+    color: white !important;
+}
+
+/* Warning 消息样式 - 白色文字 */
+.stWarning {
+    background-color: rgba(255, 149, 0, 0.2) !important;
+    color: white !important;
+    border-left: 4px solid #FF9500 !important;
+    border-radius: 10px !important;
+}
+
+.stWarning > div {
+    color: white !important;
+}
+
+.stWarning p {
+    color: white !important;
+}
+
+/* Info 消息样式 - 白色文字 */
+.stInfo {
+    background-color: rgba(0, 122, 255, 0.2) !important;
+    color: white !important;
+    border-left: 4px solid #007AFF !important;
+    border-radius: 10px !important;
+}
+
+.stInfo > div {
+    color: white !important;
+}
+
+.stInfo p {
+    color: white !important;
 }
 </style>
 """, unsafe_allow_html=True)
