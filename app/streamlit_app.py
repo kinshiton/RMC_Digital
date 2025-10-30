@@ -98,7 +98,7 @@ if page == "📊 系统概览":
             title="设备总数",
             value="24",
             subtitle="在线设备",
-            icon=IOS_ICONS['device']
+            icon="📱"
         )
     
     with col2:
@@ -106,7 +106,7 @@ if page == "📊 系统概览":
             title="系统健康",
             value="98%",
             subtitle="运行正常",
-            icon=IOS_ICONS['success']
+            icon="✅"
         )
     
     with col3:
@@ -114,7 +114,7 @@ if page == "📊 系统概览":
             title="今日事件",
             value="12",
             subtitle="已处理",
-            icon=IOS_ICONS['alert']
+            icon="⚠️"
         )
     
     with col4:
@@ -122,7 +122,7 @@ if page == "📊 系统概览":
             title="知识条目",
             value="156",
             subtitle="文档总数",
-            icon=IOS_ICONS['knowledge']
+            icon="📚"
         )
     
     ios_divider()
@@ -233,13 +233,13 @@ elif page == "📚 知识库":
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        ios_card("文档总数", "156", "篇", IOS_ICONS['knowledge'])
+        ios_card("文档总数", "156", "篇", "📚")
     
     with col2:
-        ios_card("文件总量", "2.3 GB", "存储空间", IOS_ICONS['info'])
+        ios_card("文件总量", "2.3 GB", "存储空间", "ℹ️")
     
     with col3:
-        ios_card("最近更新", "2 小时前", "新增 3 篇", IOS_ICONS['time'])
+        ios_card("最近更新", "2 小时前", "新增 3 篇", "🕐")
 
 elif page == "🔐 安全评估":
     st.title("🔐 风险评估工具")
@@ -279,13 +279,10 @@ elif page == "🔐 安全评估":
         # 风险等级
         if risk_score >= 7:
             risk_level = "🔴 高风险"
-            risk_color = IOS_COLORS['danger']
         elif risk_score >= 4:
             risk_level = "🟡 中风险"
-            risk_color = IOS_COLORS['warning']
         else:
             risk_level = "🟢 低风险"
-            risk_color = IOS_COLORS['success']
         
         col1, col2, col3 = st.columns(3)
         
@@ -293,11 +290,11 @@ elif page == "🔐 安全评估":
             ios_card("风险等级", risk_level, f"分数: {risk_score:.1f}/10", "⚠️")
         
         with col2:
-            ios_card("资产名称", asset_name, asset_type, IOS_ICONS['device'])
+            ios_card("资产名称", asset_name, asset_type, "📱")
         
         with col3:
             ios_card("评估时间", datetime.now().strftime("%H:%M"), 
-                    datetime.now().strftime("%Y-%m-%d"), IOS_ICONS['time'])
+                    datetime.now().strftime("%Y-%m-%d"), "🕐")
         
         ios_divider()
         
