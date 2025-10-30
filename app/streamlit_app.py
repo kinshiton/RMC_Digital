@@ -180,40 +180,75 @@ header {visibility: visible;}
     color: white !important;
 }
 
-/* 固定聊天输入框在底部 */
-.stChatInput {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 999 !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    padding: 1rem !important;
-    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.2) !important;
-}
-
-.stChatInput > div {
-    max-width: 1200px !important;
-    margin: 0 auto !important;
-}
-
-/* 聊天输入框的输入框样式 */
-.stChatInput textarea {
-    border-radius: 25px !important;
-    border: 2px solid rgba(255, 255, 255, 0.3) !important;
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    padding: 12px 20px !important;
+/* 输入区域美化 */
+.stTextArea textarea {
+    border-radius: 15px !important;
+    border: 2px solid #667eea !important;
+    background-color: #ffffff !important;
+    padding: 15px !important;
     font-size: 16px !important;
+    line-height: 1.6 !important;
+    transition: all 0.3s ease !important;
+    resize: vertical !important;
+    min-height: 100px !important;
 }
 
-.stChatInput textarea:focus {
-    border-color: rgba(255, 255, 255, 0.8) !important;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3) !important;
+.stTextArea textarea:focus {
+    border-color: #764ba2 !important;
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
+    background-color: #fafbff !important;
 }
 
-/* 为聊天消息区域添加底部padding，避免被固定输入框遮挡 */
-.main .block-container {
-    padding-bottom: 120px !important;
+/* 文件上传器美化 */
+.stFileUploader {
+    border: 2px dashed #667eea !important;
+    border-radius: 10px !important;
+    padding: 10px !important;
+    background-color: rgba(102, 126, 234, 0.05) !important;
+    transition: all 0.3s ease !important;
+}
+
+.stFileUploader:hover {
+    border-color: #764ba2 !important;
+    background-color: rgba(102, 126, 234, 0.1) !important;
+}
+
+.stFileUploader label {
+    color: #667eea !important;
+    font-weight: 600 !important;
+}
+
+/* 发送按钮美化 */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    padding: 12px 24px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+}
+
+/* 清空按钮 */
+.stButton > button:not([kind="primary"]) {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 12px !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button:not([kind="primary"]):hover {
+    background-color: #e9ecef !important;
+    border-color: #adb5bd !important;
+    transform: translateY(-1px) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -401,23 +436,120 @@ with tab1:
     for message in current_conv['messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            # 显示附件
+            if 'attachments' in message and message['attachments']:
+                for att in message['attachments']:
+                    if att['type'] == 'image':
+                        st.image(att['data'], caption=att['name'], width=300)
+                    elif att['type'] == 'file':
+                        st.info(f"📎 附件：{att['name']}")
     
-    # 用户输入
-    user_question = st.chat_input("💬 请输入您的问题..." if has_api else "请先配置 API Key")
+    st.markdown("---")
     
-    if user_question and has_api:
-        # 显示用户问题
+    # 自定义输入区域
+    st.markdown("### 💬 发送消息")
+    
+    # 创建一个容器用于输入
+    input_container = st.container()
+    
+    with input_container:
+        # 文本输入
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            user_question = st.text_area(
+                "输入您的问题",
+                height=100,
+                placeholder="💬 请输入您的问题...\n（支持多行输入，输入框会自动调整高度）",
+                key="user_input",
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            st.markdown("**📎 附件**")
+            
+            # 图片上传
+            uploaded_images = st.file_uploader(
+                "上传图片",
+                type=['jpg', 'jpeg', 'png', 'gif', 'webp'],
+                accept_multiple_files=True,
+                key="image_upload",
+                label_visibility="collapsed"
+            )
+            
+            # 文件上传
+            uploaded_files = st.file_uploader(
+                "上传文件",
+                type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt'],
+                accept_multiple_files=True,
+                key="file_upload",
+                label_visibility="collapsed"
+            )
+        
+        # 发送按钮
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
+        
+        with col_btn1:
+            send_button = st.button("🚀 发送", type="primary", use_container_width=True)
+        
+        with col_btn2:
+            clear_button = st.button("🗑️ 清空", use_container_width=True)
+        
+        if clear_button:
+            st.session_state.user_input = ""
+            st.rerun()
+    
+    # 处理发送
+    if send_button and (user_question or uploaded_images or uploaded_files) and has_api:
+        # 准备附件
+        attachments = []
+        
+        # 处理图片
+        if uploaded_images:
+            for img in uploaded_images:
+                attachments.append({
+                    'type': 'image',
+                    'name': img.name,
+                    'data': img
+                })
+        
+        # 处理文件
+        if uploaded_files:
+            for file in uploaded_files:
+                attachments.append({
+                    'type': 'file',
+                    'name': file.name,
+                    'data': file
+                })
+        
+        # 显示用户消息
         with st.chat_message("user"):
-            st.markdown(user_question)
+            if user_question:
+                st.markdown(user_question)
+            
+            # 显示附件
+            if attachments:
+                for att in attachments:
+                    if att['type'] == 'image':
+                        st.image(att['data'], caption=att['name'], width=300)
+                    elif att['type'] == 'file':
+                        st.info(f"📎 附件：{att['name']}")
+        
+        # 构建完整消息内容
+        full_content = user_question if user_question else ""
+        if attachments:
+            att_names = [att['name'] for att in attachments]
+            full_content += f"\n\n📎 附件：{', '.join(att_names)}"
         
         # 添加到当前对话
         current_conv['messages'].append({
             "role": "user",
-            "content": user_question
+            "content": full_content,
+            "attachments": attachments
         })
         
         # 自动更新对话标题（如果是第一条消息）
-        if len(current_conv['messages']) == 1:
+        if len(current_conv['messages']) == 1 and user_question:
             # 使用问题的前20个字符作为标题
             auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
             update_conversation_title(current_conv['id'], auto_title)
@@ -483,6 +615,9 @@ with tab1:
                     "content": full_response
                 })
                 
+                # 清空输入并刷新
+                st.rerun()
+                
             except Exception as e:
                 error_msg = f"❌ AI 调用失败：{str(e)}"
                 st.error(error_msg)
@@ -490,6 +625,7 @@ with tab1:
                     "role": "assistant",
                     "content": error_msg
                 })
+                st.rerun()
     
     st.markdown("---")
     
