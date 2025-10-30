@@ -198,9 +198,11 @@ elif page == "📚 知识库":
     
     ios_divider()
     
-    # 初始化对话历史
+    # 初始化对话历史和待处理问题
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
+    if 'pending_question' not in st.session_state:
+        st.session_state.pending_question = None
     
     # 显示对话历史
     for message in st.session_state.chat_history:
@@ -209,6 +211,11 @@ elif page == "📚 知识库":
     
     # 用户输入
     user_question = st.chat_input("💬 请输入您的问题..." if has_api else "请先配置 DeepSeek API Key")
+    
+    # 检查是否有待处理的问题（来自快捷按钮）
+    if st.session_state.pending_question:
+        user_question = st.session_state.pending_question
+        st.session_state.pending_question = None
     
     if user_question and has_api:
         # 显示用户问题
@@ -311,11 +318,8 @@ elif page == "📚 知识库":
     for i, question in enumerate(example_questions):
         with cols[i % 3]:
             if st.button(f"💬 {question[:15]}...", key=f"example_{i}", use_container_width=True):
-                # 模拟用户输入
-                st.session_state.chat_history.append({
-                    "role": "user",
-                    "content": question
-                })
+                # 设置待处理问题，触发 AI 回复
+                st.session_state.pending_question = question
                 st.rerun()
 
 elif page == "🔐 安全评估":
