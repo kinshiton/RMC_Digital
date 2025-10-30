@@ -165,79 +165,158 @@ if page == "📊 系统概览":
     st.dataframe(events_df, use_container_width=True, hide_index=True)
 
 elif page == "📚 知识库":
-    st.title("📚 智能知识库")
+    st.title("🤖 AI 智能助手")
     
     st.markdown("""
-    欢迎使用 RMC Digital 智能知识库系统！
+    💬 **智能问答系统** - 由 DeepSeek AI 驱动
     
-    ### 🎯 主要功能
-    
-    - **📝 文档管理**：支持多种格式（PDF, Word, Excel, PPT 等）
-    - **🔍 智能搜索**：基于 AI 的语义搜索
-    - **💬 智能问答**：自动回答您的问题
-    - **🔗 外部链接**：集成 Power BI、Power Apps 等
-    
-    ### 📖 使用方法
-    
-    1. **搜索知识**：在搜索框输入关键词
-    2. **上传文档**：点击管理后台添加新文档
-    3. **智能提问**：使用自然语言提问
-    
-    ### 💡 示例问题
-    
-    - "什么是 RMC 能力模型？"
-    - "如何配置摄像头？"
-    - "安全事件响应流程是什么？"
+    我可以帮您解答关于安防运维、系统配置、技术支持等各类问题！
     """)
     
-    ios_divider()
+    # 检查是否配置了 DeepSeek API
+    try:
+        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+        model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
+        has_api = bool(api_key)
+    except:
+        has_api = False
+        api_key = ""
+        model = "deepseek-chat"
     
-    # 搜索功能
-    st.subheader("🔍 搜索知识库")
-    
-    search_query = st.text_input(
-        "输入您的问题或关键词",
-        placeholder="例如：如何配置设备？"
-    )
-    
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        search_button = st.button("🔍 搜索", type="primary", use_container_width=True)
-    
-    if search_button and search_query:
-        with st.spinner("正在搜索..."):
-            st.info(f"💡 搜索关键词：**{search_query}**")
-            
-            # 模拟搜索结果
-            st.success("✅ 找到 3 个相关条目")
-            
-            # 结果展示
-            for i in range(3):
-                with st.expander(f"📄 文档 {i+1}: {search_query} 相关说明"):
-                    st.markdown(f"""
-                    **标签**：配置, 教程, 指南
-                    
-                    **内容摘要**：
-                    这是关于 {search_query} 的详细说明文档。包含了完整的配置步骤和注意事项...
-                    
-                    **创建时间**：2025-10-{20+i} 10:30
-                    """)
+    if not has_api:
+        st.warning("""
+        ⚠️ **DeepSeek API 未配置**
+        
+        请在 Streamlit Cloud Settings → Secrets 中配置：
+        ```toml
+        DEEPSEEK_API_KEY = "your-api-key"
+        DEEPSEEK_MODEL = "deepseek-chat"
+        ```
+        """)
+    else:
+        st.success("✅ AI 已就绪！DeepSeek 模型已连接")
     
     ios_divider()
     
-    # 统计信息
-    st.subheader("📊 知识库统计")
+    # 初始化对话历史
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
     
-    col1, col2, col3 = st.columns(3)
+    # 显示对话历史
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
     
-    with col1:
-        ios_card("文档总数", "156", "篇", "📚")
+    # 用户输入
+    user_question = st.chat_input("💬 请输入您的问题..." if has_api else "请先配置 DeepSeek API Key")
     
-    with col2:
-        ios_card("文件总量", "2.3 GB", "存储空间", "ℹ️")
+    if user_question and has_api:
+        # 显示用户问题
+        with st.chat_message("user"):
+            st.markdown(user_question)
+        
+        # 添加到历史
+        st.session_state.chat_history.append({
+            "role": "user",
+            "content": user_question
+        })
+        
+        # 调用 DeepSeek API
+        with st.chat_message("assistant"):
+            with st.spinner("🤔 AI 正在思考..."):
+                try:
+                    import openai
+                    
+                    # 配置 DeepSeek API（OpenAI 兼容格式）
+                    client = openai.OpenAI(
+                        api_key=api_key,
+                        base_url="https://api.deepseek.com"
+                    )
+                    
+                    # 构建消息历史（最近 10 条）
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": """你是 RMC Digital 智能安防运维系统的 AI 助手。你的职责是：
+
+1. 回答关于安防系统、设备管理、风险评估的问题
+2. 提供技术支持和操作指导
+3. 解释安全概念和最佳实践
+4. 帮助用户排查问题
+
+请用专业、友好的语气回答问题，提供清晰、实用的建议。"""
+                        }
+                    ]
+                    
+                    # 添加最近的对话历史
+                    recent_history = st.session_state.chat_history[-10:]
+                    for msg in recent_history:
+                        messages.append({
+                            "role": msg["role"],
+                            "content": msg["content"]
+                        })
+                    
+                    # 调用 API
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=2000
+                    )
+                    
+                    # 获取回答
+                    ai_response = response.choices[0].message.content
+                    
+                    # 显示回答
+                    st.markdown(ai_response)
+                    
+                    # 添加到历史
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": ai_response
+                    })
+                    
+                except Exception as e:
+                    error_msg = f"❌ AI 调用失败：{str(e)}"
+                    st.error(error_msg)
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": error_msg
+                    })
     
-    with col3:
-        ios_card("最近更新", "2 小时前", "新增 3 篇", "🕐")
+    # 侧边栏 - 对话管理
+    with st.sidebar:
+        st.markdown("### 💬 对话管理")
+        
+        if st.button("🗑️ 清空对话历史", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
+        
+        st.markdown(f"**对话条数**：{len(st.session_state.chat_history)}")
+    
+    ios_divider()
+    
+    # 快捷提问示例
+    st.markdown("### 💡 试试这些问题")
+    
+    example_questions = [
+        "什么是安防系统的风险评估？",
+        "如何配置 Axis IP 摄像头？",
+        "设备健康度低于 80% 该怎么办？",
+        "安全事件响应的标准流程是什么？",
+        "如何进行系统日常巡检？"
+    ]
+    
+    cols = st.columns(3)
+    for i, question in enumerate(example_questions):
+        with cols[i % 3]:
+            if st.button(f"💬 {question[:15]}...", key=f"example_{i}", use_container_width=True):
+                # 模拟用户输入
+                st.session_state.chat_history.append({
+                    "role": "user",
+                    "content": question
+                })
+                st.rerun()
 
 elif page == "🔐 安全评估":
     st.title("🔐 风险评估工具")
