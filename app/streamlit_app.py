@@ -206,18 +206,25 @@ section[data-testid="stSidebar"] > div {
     padding: 0 1.5rem;
 }
 
-/* 文本输入框 - DeepSeek 风格 */
+/* 输入框容器 */
+.input-box-container {
+    position: relative;
+    width: 100%;
+}
+
+/* 文本输入框 - 自适应高度 */
 .stTextArea textarea {
     border: 1px solid #d1d5db !important;
-    border-radius: 10px !important;
-    padding: 0.875rem 1rem !important;
+    border-radius: 12px !important;
+    padding: 0.875rem 3.5rem 0.875rem 1rem !important;
     font-size: 14px !important;
     line-height: 1.5 !important;
-    resize: none !important;
-    min-height: 24px !important;
-    max-height: 160px !important;
+    resize: vertical !important;
+    min-height: 52px !important;
+    max-height: 200px !important;
     transition: border-color 0.15s !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    overflow-y: auto !important;
 }
 
 .stTextArea textarea:focus {
@@ -228,6 +235,7 @@ section[data-testid="stSidebar"] > div {
 
 .stTextArea textarea::placeholder {
     color: #9ca3af !important;
+    font-size: 14px !important;
 }
 
 /* 底部工具栏 */
@@ -266,22 +274,43 @@ section[data-testid="stSidebar"] > div {
     border-color: #d1d5db;
 }
 
-/* 发送按钮 - DeepSeek 风格 */
+/* 发送按钮 - 圆形，定位在输入框内 */
+.send-button-container {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    z-index: 10;
+}
+
 .stButton > button[kind="primary"] {
     background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
     color: white !important;
     border: none !important;
-    border-radius: 6px !important;
-    padding: 0.5rem 1.25rem !important;
-    font-size: 13px !important;
+    border-radius: 50% !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+    font-size: 16px !important;
     font-weight: 500 !important;
     transition: all 0.15s !important;
-    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
 }
 
 .stButton > button[kind="primary"]:hover {
     background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
     box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25) !important;
+    transform: scale(1.05) !important;
+}
+
+.stButton > button[kind="primary"]:disabled {
+    background: #d1d5db !important;
+    cursor: not-allowed !important;
+    opacity: 0.5 !important;
 }
 
 /* 文件上传器 - 精简样式 */
@@ -684,51 +713,71 @@ if not st.session_state.show_knowledge_manager:
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # ===== 底部输入区域 - 完全模仿 DeepSeek =====
+    # ===== 底部输入区域 - 优化版 =====
     st.markdown('<div class="input-wrapper"><div class="input-inner">', unsafe_allow_html=True)
     
-    # 模型选择（精简版）
-    selected_model = st.selectbox(
-        "模型",
-        ["DeepSeek Chat", "DeepSeek Reasoner", "GPT-4 Vision", "Claude 3"],
-        index=0,
-        label_visibility="collapsed"
-    )
+    # 初始化生成状态
+    if 'is_generating' not in st.session_state:
+        st.session_state.is_generating = False
+    
+    # 模型选择（紧凑版）
+    col_model, col_spacer = st.columns([2, 4])
+    
+    with col_model:
+        selected_model = st.selectbox(
+            "模型",
+            ["DeepSeek Chat", "DeepSeek Reasoner", "GPT-4 Vision", "Claude 3"],
+            index=0,
+            label_visibility="collapsed"
+        )
+    
+    # 输入框容器（带内嵌按钮）
+    st.markdown('<div class="input-box-container">', unsafe_allow_html=True)
     
     # 文本输入
     user_question = st.text_area(
         "消息",
-        height=24,
-        placeholder="给 DeepSeek 发送消息...",
+        height=52,
+        placeholder="给 GuardNova 发送消息...",
         key="user_input",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        disabled=st.session_state.is_generating
     )
     
-    # 底部工具栏
-    col_tools, col_send = st.columns([6, 1])
+    # 发送/停止按钮（叠加在输入框右下角）
+    st.markdown("""
+    <style>
+    .stButton {
+        position: absolute;
+        right: 0.625rem;
+        bottom: 0.625rem;
+        z-index: 100;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    with col_tools:
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            uploaded_attachments = st.file_uploader(
-                "附件",
-                type=['jpg', 'jpeg', 'png', 'pdf', 'docx', 'txt'],
-                accept_multiple_files=True,
-                key="attach",
-                label_visibility="collapsed"
-            )
-        
-        with col2:
-            st.markdown('<div class="toolbar-btn">💡 深度思考</div>', unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown('<div class="toolbar-btn">🔍 联网搜索</div>', unsafe_allow_html=True)
+    # 根据状态显示不同的按钮
+    if st.session_state.is_generating:
+        # 停止按钮
+        stop_button = st.button("■", type="primary", key="stop_btn", help="停止生成")
+        send_button = False
+    else:
+        # 发送按钮
+        send_button = st.button("↑", type="primary", key="send_btn", help="发送 (Ctrl+Enter)", 
+                               disabled=not user_question or not user_question.strip())
+        stop_button = False
     
-    with col_send:
-        send_button = st.button("↑", type="primary", use_container_width=True, help="发送 (Enter)")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 提示信息
+    st.caption("💡 Ctrl+Enter 发送消息 | Shift+Enter 换行")
     
     st.markdown('</div></div>', unsafe_allow_html=True)
+    
+    # ===== 处理停止 =====
+    if stop_button:
+        st.session_state.is_generating = False
+        st.rerun()
     
     # ===== 处理发送 =====
     # 处理待处理问题
@@ -745,35 +794,23 @@ if not st.session_state.show_knowledge_manager:
         has_api = False
         api_key = ""
     
-    if send_button and (user_question or uploaded_attachments) and has_api:
+    if send_button and user_question and user_question.strip() and has_api:
+        # 设置生成状态
+        st.session_state.is_generating = True
+        
         # 创建对话（如果需要）
         if not current_conv:
             create_new_conversation()
             current_conv = get_current_conversation()
         
-        # 准备附件
-        attachments = []
-        if uploaded_attachments:
-            for file in uploaded_attachments:
-                file_ext = file.name.split('.')[-1].lower()
-                file_type = 'image' if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else 'file'
-                attachments.append({'type': file_type, 'name': file.name, 'data': file})
-        
-        # 构建消息
-        full_content = user_question if user_question else ""
-        if attachments:
-            att_names = [att['name'] for att in attachments]
-            full_content += f"\n\n📎 附件：{', '.join(att_names)}"
-        
         # 添加用户消息
         current_conv['messages'].append({
             "role": "user",
-            "content": full_content,
-            "attachments": attachments
+            "content": user_question.strip()
         })
         
         # 更新标题
-        if len(current_conv['messages']) == 1 and user_question:
+        if len(current_conv['messages']) == 1:
             auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
             current_conv['title'] = auto_title
         
@@ -817,14 +854,22 @@ if not st.session_state.show_knowledge_manager:
                     if chunk.choices[0].delta.content is not None:
                         full_response += chunk.choices[0].delta.content
                         response_placeholder.markdown(full_response + "▌")
+                    
+                    # 检查是否停止
+                    if not st.session_state.is_generating:
+                        break
                 
                 response_placeholder.markdown(full_response)
             
             # 添加 AI 回复
             current_conv['messages'].append({"role": "assistant", "content": full_response})
+            
+            # 重置生成状态
+            st.session_state.is_generating = False
             st.rerun()
             
         except Exception as e:
+            st.session_state.is_generating = False
             st.error(f"❌ {str(e)}")
             current_conv['messages'].append({"role": "assistant", "content": f"抱歉，出现错误：{str(e)}"})
             st.rerun()
