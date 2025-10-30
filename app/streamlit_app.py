@@ -179,6 +179,42 @@ header {visibility: visible;}
 .stInfo p {
     color: white !important;
 }
+
+/* 固定聊天输入框在底部 */
+.stChatInput {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    padding: 1rem !important;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.stChatInput > div {
+    max-width: 1200px !important;
+    margin: 0 auto !important;
+}
+
+/* 聊天输入框的输入框样式 */
+.stChatInput textarea {
+    border-radius: 25px !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    padding: 12px 20px !important;
+    font-size: 16px !important;
+}
+
+.stChatInput textarea:focus {
+    border-color: rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 为聊天消息区域添加底部padding，避免被固定输入框遮挡 */
+.main .block-container {
+    padding-bottom: 120px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
