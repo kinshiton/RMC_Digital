@@ -69,31 +69,37 @@ section[data-testid="stSidebar"] > div {
     color: #1f2937;
 }
 
-/* 侧边栏按钮 */
-.sidebar-btn {
-    display: flex;
-    align-items: center;
-    width: calc(100% - 1rem);
-    margin: 0.5rem;
-    padding: 0.625rem 0.875rem;
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #374151;
-    cursor: pointer;
-    transition: all 0.2s;
+/* 侧边栏按钮容器 */
+section[data-testid="stSidebar"] .stButton {
+    margin-top: 0.5rem;
 }
 
-.sidebar-btn:hover {
-    background: #f9fafb;
-    border-color: #d1d5db;
+section[data-testid="stSidebar"] > div > div:first-child {
+    padding-top: 0 !important;
 }
 
-.sidebar-btn-icon {
-    margin-right: 8px;
-    font-size: 16px;
+/* 侧边栏按钮样式 */
+section[data-testid="stSidebar"] .stButton > button {
+    width: 100% !important;
+    padding: 0.625rem 0.875rem !important;
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #374151 !important;
+    transition: all 0.2s !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: #f9fafb !important;
+    border-color: #d1d5db !important;
+}
+
+/* 侧边栏分隔线 */
+section[data-testid="stSidebar"] hr {
+    margin: 1rem 0.5rem !important;
+    border-color: #e5e7eb !important;
 }
 
 /* 对话分组 */
@@ -274,43 +280,50 @@ section[data-testid="stSidebar"] > div {
     border-color: #d1d5db;
 }
 
-/* 发送按钮 - 圆形，定位在输入框内 */
-.send-button-container {
-    position: absolute;
-    right: 0.5rem;
-    bottom: 0.5rem;
-    z-index: 10;
+/* 发送按钮容器 - 固定在输入框右侧 */
+div[data-testid="column"]:has(button[kind="primary"]) {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-left: 0.5rem !important;
 }
 
+/* 发送按钮 - 完美圆形 */
 .stButton > button[kind="primary"] {
     background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
     color: white !important;
     border: none !important;
     border-radius: 50% !important;
-    width: 32px !important;
-    height: 32px !important;
-    min-width: 32px !important;
-    min-height: 32px !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    max-width: 36px !important;
+    max-height: 36px !important;
     padding: 0 !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
-    transition: all 0.15s !important;
-    display: flex !important;
+    margin: 0 !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    transition: all 0.2s !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
+    flex-shrink: 0 !important;
 }
 
-.stButton > button[kind="primary"]:hover {
+.stButton > button[kind="primary"]:hover:not(:disabled) {
     background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25) !important;
-    transform: scale(1.05) !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3) !important;
+    transform: scale(1.08) !important;
 }
 
 .stButton > button[kind="primary"]:disabled {
     background: #d1d5db !important;
     cursor: not-allowed !important;
     opacity: 0.5 !important;
+    transform: none !important;
 }
 
 /* 文件上传器 - 精简样式 */
@@ -389,10 +402,15 @@ section[data-testid="stSidebar"] .streamlit-expanderContent {
     color: #374151 !important;
     border: 1px solid #e5e7eb !important;
     border-radius: 6px !important;
-    padding: 0.375rem 0.875rem !important;
+    padding: 0.625rem 1rem !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     transition: all 0.15s !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    line-height: 1.4 !important;
+    min-height: 36px !important;
+    height: auto !important;
 }
 
 .stButton > button:not([kind="primary"]):hover {
@@ -538,6 +556,9 @@ with st.sidebar:
         <div class="brand-name">GuardNova</div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # 添加间距
+    st.markdown('<div style="height: 0.75rem;"></div>', unsafe_allow_html=True)
     
     # 主要操作按钮
     col1, col2 = st.columns(2)
@@ -731,43 +752,31 @@ if not st.session_state.show_knowledge_manager:
             label_visibility="collapsed"
         )
     
-    # 输入框容器（带内嵌按钮）
-    st.markdown('<div class="input-box-container">', unsafe_allow_html=True)
+    # 输入框和发送按钮（分两列布局）
+    col_input, col_send = st.columns([20, 1])
     
-    # 文本输入
-    user_question = st.text_area(
-        "消息",
-        height=52,
-        placeholder="给 GuardNova 发送消息...",
-        key="user_input",
-        label_visibility="collapsed",
-        disabled=st.session_state.is_generating
-    )
+    with col_input:
+        # 文本输入
+        user_question = st.text_area(
+            "消息",
+            height=52,
+            placeholder="给 GuardNova 发送消息...",
+            key="user_input",
+            label_visibility="collapsed",
+            disabled=st.session_state.is_generating
+        )
     
-    # 发送/停止按钮（叠加在输入框右下角）
-    st.markdown("""
-    <style>
-    .stButton {
-        position: absolute;
-        right: 0.625rem;
-        bottom: 0.625rem;
-        z-index: 100;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # 根据状态显示不同的按钮
-    if st.session_state.is_generating:
-        # 停止按钮
-        stop_button = st.button("■", type="primary", key="stop_btn", help="停止生成")
-        send_button = False
-    else:
-        # 发送按钮
-        send_button = st.button("↑", type="primary", key="send_btn", help="发送 (Ctrl+Enter)", 
-                               disabled=not user_question or not user_question.strip())
-        stop_button = False
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_send:
+        # 根据状态显示不同的按钮
+        if st.session_state.is_generating:
+            # 停止按钮
+            stop_button = st.button("■", type="primary", key="stop_btn", help="停止生成")
+            send_button = False
+        else:
+            # 发送按钮
+            send_button = st.button("↑", type="primary", key="send_btn", help="发送 (Ctrl+Enter)", 
+                                   disabled=not user_question or not user_question.strip())
+            stop_button = False
     
     # 提示信息
     st.caption("💡 Ctrl+Enter 发送消息 | Shift+Enter 换行")
