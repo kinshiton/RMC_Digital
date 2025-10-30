@@ -1,265 +1,327 @@
 """
-Streamlit Cloud 部署入口
-简化版仪表板，移除了对 OpenCV 等重型依赖的需求
+GuardNova - AI 智能助手
+专注于知识库管理和智能问答
 """
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 from pathlib import Path
-import sys
-
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
-
-# 尝试导入 iOS 样式，如果失败则使用默认样式
-try:
-    from ios_style import apply_ios_style, ios_card, ios_badge, ios_divider, IOS_ICONS, IOS_COLORS
-    HAS_IOS_STYLE = True
-except ImportError:
-    HAS_IOS_STYLE = False
-    # 定义备用的简单函数
-    def apply_ios_style():
-        st.markdown("""
-        <style>
-        .stApp {
-            background-color: #F2F2F7;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    
-    def ios_card(title, value, subtitle, icon):
-        """简单的卡片组件 - 使用容器"""
-        with st.container():
-            st.markdown(f"### {icon} {title}")
-            st.markdown(f"## {value}")
-            st.caption(subtitle)
-    
-    def ios_divider():
-        st.markdown("---")
-    
-    IOS_ICONS = {
-        'device': '📱', 'success': '✅', 'alert': '⚠️', 'knowledge': '📚',
-        'info': 'ℹ️', 'time': '🕐'
-    }
-    IOS_COLORS = {
-        'primary': '#007AFF', 'success': '#34C759', 'warning': '#FF9500',
-        'danger': '#FF3B30'
-    }
 
 # 页面配置
 st.set_page_config(
-    page_title="🛡️ RMC 智能安防",
+    page_title="🛡️ GuardNova",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 应用iOS风格
-apply_ios_style()
+# 自定义样式
+st.markdown("""
+<style>
+/* 全局背景 */
+.stApp {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
 
-# 检测是否在云端环境
-IS_CLOUD = not Path("/Users").exists()
+/* 主内容区域 */
+.main .block-container {
+    background-color: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-top: 1rem;
+}
 
-# 侧边栏导航
-st.sidebar.markdown("## 🛡️ RMC Digital")
-st.sidebar.markdown("### 智能安防运维系统")
-st.sidebar.markdown("---")
+/* 侧边栏样式 */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+    color: white;
+}
 
-# 导航菜单
-page = st.sidebar.radio(
-    "导航",
-    ["📊 系统概览", "📚 知识库", "🔐 安全评估", "📖 使用说明"],
-    label_visibility="collapsed"
-)
+section[data-testid="stSidebar"] * {
+    color: white !important;
+}
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 💡 提示")
-if IS_CLOUD:
-    st.sidebar.info("☁️ 运行于云端模式")
-else:
-    st.sidebar.info("💻 运行于本地模式")
+/* 聊天消息样式 */
+.stChatMessage {
+    background-color: #f8f9fa;
+    border-radius: 15px;
+    padding: 1rem;
+    margin: 0.5rem 0;
+}
 
-# 主页面内容
-if page == "📊 系统概览":
-    st.title("📊 系统概览")
-    
-    # 快速统计
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        ios_card(
-            title="设备总数",
-            value="24",
-            subtitle="在线设备",
-            icon="📱"
-        )
-    
-    with col2:
-        ios_card(
-            title="系统健康",
-            value="98%",
-            subtitle="运行正常",
-            icon="✅"
-        )
-    
-    with col3:
-        ios_card(
-            title="今日事件",
-            value="12",
-            subtitle="已处理",
-            icon="⚠️"
-        )
-    
-    with col4:
-        ios_card(
-            title="知识条目",
-            value="156",
-            subtitle="文档总数",
-            icon="📚"
-        )
-    
-    ios_divider()
-    
-    # 设备状态图表
-    st.subheader("📈 设备状态趋势")
-    
-    # 模拟数据
-    dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
-    df = pd.DataFrame({
-        '日期': dates,
-        '在线设备': [20 + i % 5 for i in range(30)],
-        '健康度': [95 + i % 5 for i in range(30)]
-    })
-    
-    fig = px.line(df, x='日期', y=['在线设备', '健康度'], 
-                  title='最近30天设备状态')
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#000000')
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    ios_divider()
-    
-    # 最近事件
-    st.subheader("📋 最近事件")
-    
-    events_data = {
-        '时间': ['2小时前', '5小时前', '1天前', '2天前'],
-        '类型': ['信息', '警告', '成功', '信息'],
-        '描述': [
-            '系统自动备份完成',
-            '设备 CAM-03 响应时间较慢',
-            '安全扫描通过',
-            '新增知识条目 5 篇'
-        ]
+/* 按钮样式 */
+.stButton > button {
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* 输入框样式 */
+.stTextInput > div > div > input {
+    border-radius: 10px;
+}
+
+/* 隐藏默认菜单 */
+#MainMenu {visibility: visible;}
+header {visibility: visible;}
+
+/* 标签页样式 */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 10px 10px 0 0;
+    padding: 10px 20px;
+    background-color: #e9ecef;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #667eea;
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ===== 初始化 Session State =====
+if 'conversations' not in st.session_state:
+    st.session_state.conversations = [
+        {
+            'id': 1,
+            'title': '新对话',
+            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'messages': []
+        }
+    ]
+
+if 'current_conversation_id' not in st.session_state:
+    st.session_state.current_conversation_id = 1
+
+if 'knowledge_items' not in st.session_state:
+    st.session_state.knowledge_items = []
+
+# ===== 辅助函数 =====
+def get_current_conversation():
+    """获取当前对话"""
+    for conv in st.session_state.conversations:
+        if conv['id'] == st.session_state.current_conversation_id:
+            return conv
+    return st.session_state.conversations[0]
+
+def create_new_conversation():
+    """创建新对话"""
+    new_id = max([c['id'] for c in st.session_state.conversations]) + 1
+    new_conv = {
+        'id': new_id,
+        'title': f'新对话 {new_id}',
+        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'messages': []
     }
-    
-    events_df = pd.DataFrame(events_data)
-    st.dataframe(events_df, use_container_width=True, hide_index=True)
+    st.session_state.conversations.append(new_conv)
+    st.session_state.current_conversation_id = new_id
+    st.rerun()
 
-elif page == "📚 知识库":
-    # 创建标签页
-    tab1, tab2 = st.tabs(["🤖 AI 智能助手", "📝 知识管理"])
+def delete_conversation(conv_id):
+    """删除对话"""
+    if len(st.session_state.conversations) > 1:
+        st.session_state.conversations = [c for c in st.session_state.conversations if c['id'] != conv_id]
+        if st.session_state.current_conversation_id == conv_id:
+            st.session_state.current_conversation_id = st.session_state.conversations[0]['id']
+        st.rerun()
+
+def export_conversation(conv):
+    """导出对话为文本"""
+    content = f"GuardNova 对话记录\n"
+    content += f"标题：{conv['title']}\n"
+    content += f"创建时间：{conv['created_at']}\n"
+    content += f"{'='*50}\n\n"
     
-    with tab1:
-        st.title("🤖 AI 智能助手")
+    for msg in conv['messages']:
+        role = "用户" if msg['role'] == 'user' else "GuardNova"
+        content += f"{role}：\n{msg['content']}\n\n"
+    
+    return content
+
+def update_conversation_title(conv_id, new_title):
+    """更新对话标题"""
+    for conv in st.session_state.conversations:
+        if conv['id'] == conv_id:
+            conv['title'] = new_title
+            break
+
+# ===== 侧边栏 - 历史记录管理 =====
+with st.sidebar:
+    st.markdown("# 🛡️ GuardNova")
+    st.markdown("### AI 智能助手")
+    st.markdown("---")
+    
+    # 新建对话按钮
+    if st.button("➕ 新建对话", use_container_width=True, type="primary"):
+        create_new_conversation()
+    
+    st.markdown("---")
+    st.markdown("### 📝 我的历史记录")
+    
+    # 显示所有对话
+    for conv in reversed(st.session_state.conversations):
+        is_current = conv['id'] == st.session_state.current_conversation_id
         
-        st.markdown("""
-        💬 **智能问答系统** - 由 DeepSeek AI 驱动
-        
-        我可以帮您解答关于安防运维、系统配置、技术支持等各类问题！
-        """)
-        
-        # 检查是否配置了 DeepSeek API
-        try:
-            api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
-            model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
-            has_api = bool(api_key)
-        except:
-            has_api = False
-            api_key = ""
-            model = "deepseek-chat"
-        
-        if not has_api:
-            st.warning("""
-            ⚠️ **DeepSeek API 未配置**
+        with st.expander(
+            f"{'📌 ' if is_current else '💬 '}{conv['title']}", 
+            expanded=is_current
+        ):
+            # 切换到此对话
+            if not is_current:
+                if st.button("📖 打开", key=f"open_{conv['id']}", use_container_width=True):
+                    st.session_state.current_conversation_id = conv['id']
+                    st.rerun()
             
-            请在 Streamlit Cloud Settings → Secrets 中配置：
-            ```toml
-            DEEPSEEK_API_KEY = "your-api-key"
-            DEEPSEEK_MODEL = "deepseek-chat"
-            ```
-            """)
-        else:
-            st.success("✅ AI 已就绪！DeepSeek 模型已连接")
-        
-        ios_divider()
+            # 编辑标题
+            new_title = st.text_input(
+                "修改标题",
+                value=conv['title'],
+                key=f"title_{conv['id']}"
+            )
+            if new_title != conv['title']:
+                if st.button("💾 保存标题", key=f"save_{conv['id']}", use_container_width=True):
+                    update_conversation_title(conv['id'], new_title)
+                    st.success("✅ 标题已更新")
+                    st.rerun()
+            
+            # 下载对话
+            export_text = export_conversation(conv)
+            st.download_button(
+                "📥 下载对话",
+                data=export_text,
+                file_name=f"GuardNova_{conv['title']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain",
+                key=f"download_{conv['id']}",
+                use_container_width=True
+            )
+            
+            # 删除对话
+            if len(st.session_state.conversations) > 1:
+                if st.button("🗑️ 删除对话", key=f"delete_{conv['id']}", use_container_width=True):
+                    delete_conversation(conv['id'])
+            
+            # 显示信息
+            st.caption(f"创建于：{conv['created_at']}")
+            st.caption(f"消息数：{len(conv['messages'])}")
     
-    # 初始化对话历史和待处理问题
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-    if 'pending_question' not in st.session_state:
-        st.session_state.pending_question = None
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; font-size: 12px; opacity: 0.7;'>
+        <p>GuardNova v1.0</p>
+        <p>AI-Powered Assistant</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ===== 主内容区域 =====
+st.title("🛡️ GuardNova AI 智能助手")
+
+# 获取当前对话
+current_conv = get_current_conversation()
+
+# 显示当前对话标题
+st.markdown(f"### 当前对话：{current_conv['title']}")
+st.markdown("---")
+
+# 创建标签页
+tab1, tab2 = st.tabs(["🤖 智能问答", "📝 知识管理"])
+
+# ===== Tab 1: 智能问答 =====
+with tab1:
+    st.markdown("""
+    💬 **GuardNova 智能问答系统**
+    
+    我可以帮您解答各类问题，提供专业的技术支持和建议！
+    """)
+    
+    # 检查是否配置了 API
+    try:
+        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+        model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
+        has_api = bool(api_key)
+    except:
+        has_api = False
+        api_key = ""
+        model = "deepseek-chat"
+    
+    if not has_api:
+        st.warning("""
+        ⚠️ **AI 功能未配置**
+        
+        请在 Streamlit Cloud Settings → Secrets 中配置：
+        ```toml
+        DEEPSEEK_API_KEY = "your-api-key"
+        DEEPSEEK_MODEL = "deepseek-chat"
+        ```
+        """)
+    else:
+        st.success("✅ AI 已就绪，随时为您服务")
+    
+    st.markdown("---")
     
     # 显示对话历史
-    for message in st.session_state.chat_history:
+    for message in current_conv['messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
     
     # 用户输入
-    user_question = st.chat_input("💬 请输入您的问题..." if has_api else "请先配置 DeepSeek API Key")
-    
-    # 检查是否有待处理的问题（来自快捷按钮）
-    if st.session_state.pending_question:
-        user_question = st.session_state.pending_question
-        st.session_state.pending_question = None
+    user_question = st.chat_input("💬 请输入您的问题..." if has_api else "请先配置 API Key")
     
     if user_question and has_api:
         # 显示用户问题
         with st.chat_message("user"):
             st.markdown(user_question)
         
-        # 添加到历史
-        st.session_state.chat_history.append({
+        # 添加到当前对话
+        current_conv['messages'].append({
             "role": "user",
             "content": user_question
         })
         
-        # 调用 DeepSeek API（流式输出）
+        # 自动更新对话标题（如果是第一条消息）
+        if len(current_conv['messages']) == 1:
+            # 使用问题的前20个字符作为标题
+            auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
+            update_conversation_title(current_conv['id'], auto_title)
+        
+        # 调用 AI（流式输出）
         with st.chat_message("assistant"):
             try:
                 import openai
                 
-                # 配置 DeepSeek API（OpenAI 兼容格式）
+                # 配置 API
                 client = openai.OpenAI(
                     api_key=api_key,
                     base_url="https://api.deepseek.com"
                 )
                 
-                # 构建消息历史（最近 10 条）
+                # 构建消息历史
                 messages = [
                     {
                         "role": "system",
-                        "content": """你是 RMC Digital 智能安防运维系统的 AI 助手。你的职责是：
+                        "content": """你是 GuardNova，一个专业、友好的 AI 智能助手。你的职责是：
 
-1. 回答关于安防系统、设备管理、风险评估的问题
-2. 提供技术支持和操作指导
-3. 解释安全概念和最佳实践
-4. 帮助用户排查问题
+1. 回答用户的各类问题
+2. 提供专业的技术支持和建议
+3. 解释复杂概念并给出实用方案
+4. 帮助用户解决问题
 
-请用专业、友好的语气回答问题，提供清晰、实用的建议。"""
+请用清晰、专业且友好的语气回答问题。"""
                     }
                 ]
                 
-                # 添加最近的对话历史
-                recent_history = st.session_state.chat_history[-10:]
-                for msg in recent_history:
+                # 添加对话历史（最近 10 条）
+                recent_messages = current_conv['messages'][-10:]
+                for msg in recent_messages:
                     messages.append({
                         "role": msg["role"],
                         "content": msg["content"]
@@ -271,7 +333,7 @@ elif page == "📚 知识库":
                     messages=messages,
                     temperature=0.7,
                     max_tokens=2000,
-                    stream=True  # 启用流式输出
+                    stream=True
                 )
                 
                 # 流式显示回答
@@ -286,8 +348,8 @@ elif page == "📚 知识库":
                 # 显示最终回答
                 response_placeholder.markdown(full_response)
                 
-                # 添加到历史
-                st.session_state.chat_history.append({
+                # 添加到对话历史
+                current_conv['messages'].append({
                     "role": "assistant",
                     "content": full_response
                 })
@@ -295,138 +357,133 @@ elif page == "📚 知识库":
             except Exception as e:
                 error_msg = f"❌ AI 调用失败：{str(e)}"
                 st.error(error_msg)
-                st.session_state.chat_history.append({
+                current_conv['messages'].append({
                     "role": "assistant",
                     "content": error_msg
                 })
     
-        # 侧边栏 - 对话管理
-        with st.sidebar:
-            st.markdown("### 💬 对话管理")
-            
-            if st.button("🗑️ 清空对话历史", use_container_width=True):
-                st.session_state.chat_history = []
-                st.rerun()
-            
-            st.markdown(f"**对话条数**：{len(st.session_state.chat_history)}")
-        
-        ios_divider()
-        
-        # 快捷提问示例
-        st.markdown("### 💡 试试这些问题")
-        
-        example_questions = [
-            "什么是安防系统的风险评估？",
-            "如何配置 Axis IP 摄像头？",
-            "设备健康度低于 80% 该怎么办？",
-            "安全事件响应的标准流程是什么？",
-            "如何进行系统日常巡检？"
-        ]
-        
-        cols = st.columns(3)
-        for i, question in enumerate(example_questions):
-            with cols[i % 3]:
-                if st.button(f"💬 {question[:15]}...", key=f"example_{i}", use_container_width=True):
-                    # 设置待处理问题，触发 AI 回复
-                    st.session_state.pending_question = question
-                    st.rerun()
+    st.markdown("---")
     
-    with tab2:
-        st.title("📝 知识管理")
+    # 快捷提问示例
+    st.markdown("### 💡 试试这些问题")
+    
+    example_questions = [
+        "什么是人工智能？",
+        "如何提高工作效率？",
+        "Python 编程入门建议？",
+        "数据安全最佳实践？",
+        "项目管理的关键要素？"
+    ]
+    
+    cols = st.columns(3)
+    for i, question in enumerate(example_questions):
+        with cols[i % 3]:
+            if st.button(f"💬 {question[:12]}...", key=f"example_{i}", use_container_width=True):
+                st.session_state.pending_question = question
+                st.rerun()
+    
+    # 处理待处理问题
+    if 'pending_question' in st.session_state and st.session_state.pending_question:
+        pending_q = st.session_state.pending_question
+        st.session_state.pending_question = None
+        st.rerun()
+
+# ===== Tab 2: 知识管理 =====
+with tab2:
+    st.title("📝 知识管理")
+    
+    st.markdown("""
+    ### 📚 添加知识到知识库
+    
+    您可以添加文本、文件或网站链接到知识库中，供 AI 学习和检索。
+    """)
+    
+    st.markdown("---")
+    
+    # 添加知识表单
+    st.subheader("➕ 添加新知识")
+    
+    with st.form("add_knowledge_form"):
+        # 知识类型选择
+        knowledge_type = st.selectbox(
+            "知识类型",
+            ["📝 文本内容", "📄 文件上传", "🔗 网站链接", "📊 Power BI", "⚡ Power Apps"]
+        )
         
-        st.markdown("""
-        ### 📚 添加知识到知识库
+        # 基本信息
+        title = st.text_input("标题", placeholder="例如：技术文档")
+        tags = st.text_input("标签", placeholder="例如：技术,文档,指南（用逗号分隔）")
         
-        您可以添加文本、文件或网站链接到知识库中，供 AI 学习和检索。
-        """)
+        # 根据类型显示不同的输入
+        content = ""
+        uploaded_file = None
+        url = ""
         
-        # 初始化知识库存储
-        if 'knowledge_items' not in st.session_state:
-            st.session_state.knowledge_items = []
+        if knowledge_type == "📝 文本内容":
+            content = st.text_area("内容", height=200, placeholder="输入文本内容...")
         
-        ios_divider()
-        
-        # 添加知识表单
-        st.subheader("➕ 添加新知识")
-        
-        with st.form("add_knowledge_form"):
-            # 知识类型选择
-            knowledge_type = st.selectbox(
-                "知识类型",
-                ["📝 文本内容", "📄 文件上传", "🔗 网站链接", "📊 Power BI", "⚡ Power Apps"]
+        elif knowledge_type == "📄 文件上传":
+            uploaded_file = st.file_uploader(
+                "上传文件",
+                type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'msg', 'eml']
             )
-            
-            # 基本信息
-            title = st.text_input("标题", placeholder="例如：安防系统配置指南")
-            tags = st.text_input("标签", placeholder="例如：安防,配置,指南（用逗号分隔）")
-            
-            # 根据类型显示不同的输入
-            content = ""
-            uploaded_file = None
-            url = ""
-            
-            if knowledge_type == "📝 文本内容":
-                content = st.text_area("内容", height=200, placeholder="输入文本内容...")
-            
-            elif knowledge_type == "📄 文件上传":
-                uploaded_file = st.file_uploader(
-                    "上传文件",
-                    type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'msg', 'eml']
-                )
-                content = st.text_area("文件描述（可选）", height=100)
-            
-            elif knowledge_type == "🔗 网站链接":
-                url = st.text_input("网站 URL", placeholder="https://example.com")
-                content = st.text_area("链接描述（可选）", height=100)
-            
-            elif knowledge_type == "📊 Power BI":
-                url = st.text_input("Power BI 链接", placeholder="https://app.powerbi.com/...")
-                content = st.text_area("报表描述（可选）", height=100)
-            
-            elif knowledge_type == "⚡ Power Apps":
-                url = st.text_input("Power Apps 链接", placeholder="https://apps.powerapps.com/...")
-                content = st.text_area("应用描述（可选）", height=100)
-            
-            submitted = st.form_submit_button("💾 保存到知识库", type="primary")
-            
-            if submitted:
-                if not title:
-                    st.error("❌ 请输入标题！")
-                elif knowledge_type == "📝 文本内容" and not content:
-                    st.error("❌ 请输入内容！")
-                elif knowledge_type in ["🔗 网站链接", "📊 Power BI", "⚡ Power Apps"] and not url:
-                    st.error("❌ 请输入链接！")
-                elif knowledge_type == "📄 文件上传" and not uploaded_file:
-                    st.error("❌ 请上传文件！")
-                else:
-                    # 保存知识条目
-                    item = {
-                        "id": len(st.session_state.knowledge_items) + 1,
-                        "type": knowledge_type,
-                        "title": title,
-                        "content": content,
-                        "tags": tags,
-                        "url": url,
-                        "file_name": uploaded_file.name if uploaded_file else "",
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    st.session_state.knowledge_items.append(item)
-                    st.success(f"✅ 已添加知识条目：{title}")
-                    st.rerun()
+            content = st.text_area("文件描述（可选）", height=100)
         
-        ios_divider()
+        elif knowledge_type == "🔗 网站链接":
+            url = st.text_input("网站 URL", placeholder="https://example.com")
+            content = st.text_area("链接描述（可选）", height=100)
         
-        # 显示已有知识
-        st.subheader("📖 已有知识")
+        elif knowledge_type == "📊 Power BI":
+            url = st.text_input("Power BI 链接", placeholder="https://app.powerbi.com/...")
+            content = st.text_area("报表描述（可选）", height=100)
         
-        if len(st.session_state.knowledge_items) == 0:
-            st.info("暂无知识条目，请添加一些内容到知识库。")
-        else:
-            st.markdown(f"**总计**：{len(st.session_state.knowledge_items)} 条知识")
-            
-            # 显示知识列表
-            for item in reversed(st.session_state.knowledge_items):
-                with st.expander(f"{item['type']} {item['title']}", expanded=False):
+        elif knowledge_type == "⚡ Power Apps":
+            url = st.text_input("Power Apps 链接", placeholder="https://apps.powerapps.com/...")
+            content = st.text_area("应用描述（可选）", height=100)
+        
+        submitted = st.form_submit_button("💾 保存到知识库", type="primary")
+        
+        if submitted:
+            if not title:
+                st.error("❌ 请输入标题！")
+            elif knowledge_type == "📝 文本内容" and not content:
+                st.error("❌ 请输入内容！")
+            elif knowledge_type in ["🔗 网站链接", "📊 Power BI", "⚡ Power Apps"] and not url:
+                st.error("❌ 请输入链接！")
+            elif knowledge_type == "📄 文件上传" and not uploaded_file:
+                st.error("❌ 请上传文件！")
+            else:
+                # 保存知识条目
+                item = {
+                    "id": len(st.session_state.knowledge_items) + 1,
+                    "type": knowledge_type,
+                    "title": title,
+                    "content": content,
+                    "tags": tags,
+                    "url": url,
+                    "file_name": uploaded_file.name if uploaded_file else "",
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.session_state.knowledge_items.append(item)
+                st.success(f"✅ 已添加知识条目：{title}")
+                st.rerun()
+    
+    st.markdown("---")
+    
+    # 显示已有知识
+    st.subheader("📖 已有知识")
+    
+    if len(st.session_state.knowledge_items) == 0:
+        st.info("💡 暂无知识条目，请添加一些内容到知识库。")
+    else:
+        st.markdown(f"**总计**：{len(st.session_state.knowledge_items)} 条知识")
+        
+        # 显示知识列表
+        for item in reversed(st.session_state.knowledge_items):
+            with st.expander(f"{item['type']} {item['title']}", expanded=False):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
                     st.markdown(f"**ID**：{item['id']}")
                     st.markdown(f"**类型**：{item['type']}")
                     st.markdown(f"**标签**：{item['tags']}")
@@ -441,177 +498,12 @@ elif page == "📚 知识库":
                     
                     if item['file_name']:
                         st.markdown(f"**文件**：{item['file_name']}")
-                    
+                
+                with col2:
                     # 删除按钮
-                    if st.button(f"🗑️ 删除", key=f"delete_{item['id']}"):
+                    if st.button("🗑️ 删除", key=f"delete_{item['id']}", use_container_width=True):
                         st.session_state.knowledge_items = [
                             i for i in st.session_state.knowledge_items if i['id'] != item['id']
                         ]
                         st.success(f"✅ 已删除：{item['title']}")
                         st.rerun()
-
-elif page == "🔐 安全评估":
-    st.title("🔐 风险评估工具")
-    
-    st.markdown("""
-    ### 📝 快速风险评估
-    
-    填写以下信息，系统将为您生成详细的风险评估报告。
-    """)
-    
-    with st.form("risk_assessment_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            asset_name = st.text_input("资产名称", placeholder="例如：主服务器")
-            asset_type = st.selectbox(
-                "资产类型",
-                ["服务器", "网络设备", "安全设备", "终端设备", "其他"]
-            )
-            criticality = st.slider("关键程度", 1, 10, 5)
-        
-        with col2:
-            location = st.text_input("位置", placeholder="例如：数据中心A栋")
-            exposure = st.slider("暴露程度", 1, 10, 5)
-            vulnerability = st.slider("脆弱性", 1, 10, 5)
-        
-        submitted = st.form_submit_button("📊 生成评估报告", type="primary")
-    
-    if submitted:
-        # 计算风险分数
-        risk_score = (criticality + exposure + vulnerability) / 3
-        
-        ios_divider()
-        
-        st.subheader("📋 评估结果")
-        
-        # 风险等级
-        if risk_score >= 7:
-            risk_level = "🔴 高风险"
-        elif risk_score >= 4:
-            risk_level = "🟡 中风险"
-        else:
-            risk_level = "🟢 低风险"
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            ios_card("风险等级", risk_level, f"分数: {risk_score:.1f}/10", "⚠️")
-        
-        with col2:
-            ios_card("资产名称", asset_name, asset_type, "📱")
-        
-        with col3:
-            ios_card("评估时间", datetime.now().strftime("%H:%M"), 
-                    datetime.now().strftime("%Y-%m-%d"), "🕐")
-        
-        ios_divider()
-        
-        # 详细分析
-        st.subheader("📊 详细分析")
-        
-        analysis_data = pd.DataFrame({
-            '维度': ['关键程度', '暴露程度', '脆弱性'],
-            '评分': [criticality, exposure, vulnerability]
-        })
-        
-        fig = px.bar(analysis_data, x='维度', y='评分', 
-                     title='风险维度分析',
-                     color='评分',
-                     color_continuous_scale='RdYlGn_r')
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#000000')
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 建议措施
-        st.subheader("💡 建议措施")
-        
-        if risk_score >= 7:
-            st.error("""
-            **高风险警告**：建议立即采取以下措施：
-            - 🔒 加强访问控制
-            - 🛡️ 部署额外安全措施
-            - 📊 增加监控频率
-            - 🚨 制定应急响应计划
-            """)
-        elif risk_score >= 4:
-            st.warning("""
-            **中等风险**：建议关注以下方面：
-            - ✅ 定期安全检查
-            - 📝 更新安全策略
-            - 👥 加强人员培训
-            """)
-        else:
-            st.success("""
-            **低风险**：当前状态良好，保持：
-            - 📅 按计划维护
-            - 📊 持续监控
-            - 📚 定期评估
-            """)
-
-elif page == "📖 使用说明":
-    st.title("📖 使用说明")
-    
-    st.markdown("""
-    ## 🎯 欢迎使用 RMC Digital 智能安防运维系统
-    
-    ### 🌟 系统特点
-    
-    - **📊 实时监控**：设备状态、系统健康度实时显示
-    - **📚 知识管理**：智能文档管理和搜索
-    - **🔐 风险评估**：快速生成安全风险报告
-    - **🎨 现代设计**：iOS 风格的优雅界面
-    
-    ### 🚀 快速开始
-    
-    #### 1. 系统概览
-    - 查看整体系统状态
-    - 监控设备健康度
-    - 查看最近事件
-    
-    #### 2. 知识库
-    - 搜索文档和资料
-    - 使用 AI 智能问答
-    - 管理知识条目
-    
-    #### 3. 安全评估
-    - 填写资产信息
-    - 生成风险报告
-    - 获取改进建议
-    
-    ### 💡 使用技巧
-    
-    1. **搜索功能**：支持模糊搜索和语义搜索
-    2. **快速导航**：使用左侧菜单快速切换页面
-    3. **数据导出**：评估报告支持 PDF 导出
-    4. **移动友好**：支持手机和平板访问
-    
-    ### 🔧 技术支持
-    
-    如有问题，请联系：
-    - 📧 Email: support@rmc-digital.com
-    - 💬 GitHub: https://github.com/kinshiton/RMC_Digital
-    
-    ### 📝 版本信息
-    
-    - **版本**：v1.0.0
-    - **更新日期**：2025-10-30
-    - **部署环境**：Streamlit Cloud
-    
-    ---
-    
-    **感谢使用 RMC Digital！** 🎉
-    """)
-
-# 页脚
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
-<div style='text-align: center; color: #666; font-size: 12px;'>
-    <p>RMC Digital v1.0.0</p>
-    <p>© 2025 All Rights Reserved</p>
-</div>
-""", unsafe_allow_html=True)
-
