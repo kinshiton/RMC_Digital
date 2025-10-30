@@ -32,10 +32,11 @@ except ImportError:
         """, unsafe_allow_html=True)
     
     def ios_card(title, value, subtitle, icon):
-        """简单的卡片组件 - 纯文本实现"""
-        st.markdown(f"**{icon} {title}**")
-        st.markdown(f"# {value}")
-        st.markdown(f"<small>{subtitle}</small>", unsafe_allow_html=True)
+        """简单的卡片组件 - 使用容器"""
+        with st.container():
+            st.markdown(f"### {icon} {title}")
+            st.markdown(f"## {value}")
+            st.caption(subtitle)
     
     def ios_divider():
         st.markdown("---")
@@ -163,38 +164,42 @@ if page == "📊 系统概览":
     st.dataframe(events_df, use_container_width=True, hide_index=True)
 
 elif page == "📚 知识库":
-    st.title("🤖 AI 智能助手")
+    # 创建标签页
+    tab1, tab2 = st.tabs(["🤖 AI 智能助手", "📝 知识管理"])
     
-    st.markdown("""
-    💬 **智能问答系统** - 由 DeepSeek AI 驱动
-    
-    我可以帮您解答关于安防运维、系统配置、技术支持等各类问题！
-    """)
-    
-    # 检查是否配置了 DeepSeek API
-    try:
-        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
-        model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
-        has_api = bool(api_key)
-    except:
-        has_api = False
-        api_key = ""
-        model = "deepseek-chat"
-    
-    if not has_api:
-        st.warning("""
-        ⚠️ **DeepSeek API 未配置**
+    with tab1:
+        st.title("🤖 AI 智能助手")
         
-        请在 Streamlit Cloud Settings → Secrets 中配置：
-        ```toml
-        DEEPSEEK_API_KEY = "your-api-key"
-        DEEPSEEK_MODEL = "deepseek-chat"
-        ```
+        st.markdown("""
+        💬 **智能问答系统** - 由 DeepSeek AI 驱动
+        
+        我可以帮您解答关于安防运维、系统配置、技术支持等各类问题！
         """)
-    else:
-        st.success("✅ AI 已就绪！DeepSeek 模型已连接")
-    
-    ios_divider()
+        
+        # 检查是否配置了 DeepSeek API
+        try:
+            api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+            model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
+            has_api = bool(api_key)
+        except:
+            has_api = False
+            api_key = ""
+            model = "deepseek-chat"
+        
+        if not has_api:
+            st.warning("""
+            ⚠️ **DeepSeek API 未配置**
+            
+            请在 Streamlit Cloud Settings → Secrets 中配置：
+            ```toml
+            DEEPSEEK_API_KEY = "your-api-key"
+            DEEPSEEK_MODEL = "deepseek-chat"
+            ```
+            """)
+        else:
+            st.success("✅ AI 已就绪！DeepSeek 模型已连接")
+        
+        ios_divider()
     
     # 初始化对话历史和待处理问题
     if 'chat_history' not in st.session_state:
@@ -226,23 +231,22 @@ elif page == "📚 知识库":
             "content": user_question
         })
         
-        # 调用 DeepSeek API
+        # 调用 DeepSeek API（流式输出）
         with st.chat_message("assistant"):
-            with st.spinner("🤔 AI 正在思考..."):
-                try:
-                    import openai
-                    
-                    # 配置 DeepSeek API（OpenAI 兼容格式）
-                    client = openai.OpenAI(
-                        api_key=api_key,
-                        base_url="https://api.deepseek.com"
-                    )
-                    
-                    # 构建消息历史（最近 10 条）
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": """你是 RMC Digital 智能安防运维系统的 AI 助手。你的职责是：
+            try:
+                import openai
+                
+                # 配置 DeepSeek API（OpenAI 兼容格式）
+                client = openai.OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.deepseek.com"
+                )
+                
+                # 构建消息历史（最近 10 条）
+                messages = [
+                    {
+                        "role": "system",
+                        "content": """你是 RMC Digital 智能安防运维系统的 AI 助手。你的职责是：
 
 1. 回答关于安防系统、设备管理、风险评估的问题
 2. 提供技术支持和操作指导
@@ -250,75 +254,201 @@ elif page == "📚 知识库":
 4. 帮助用户排查问题
 
 请用专业、友好的语气回答问题，提供清晰、实用的建议。"""
-                        }
-                    ]
-                    
-                    # 添加最近的对话历史
-                    recent_history = st.session_state.chat_history[-10:]
-                    for msg in recent_history:
-                        messages.append({
-                            "role": msg["role"],
-                            "content": msg["content"]
-                        })
-                    
-                    # 调用 API
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=2000
-                    )
-                    
-                    # 获取回答
-                    ai_response = response.choices[0].message.content
-                    
-                    # 显示回答
-                    st.markdown(ai_response)
-                    
-                    # 添加到历史
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": ai_response
+                    }
+                ]
+                
+                # 添加最近的对话历史
+                recent_history = st.session_state.chat_history[-10:]
+                for msg in recent_history:
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
                     })
-                    
-                except Exception as e:
-                    error_msg = f"❌ AI 调用失败：{str(e)}"
-                    st.error(error_msg)
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": error_msg
-                    })
+                
+                # 调用 API（流式）
+                stream = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=2000,
+                    stream=True  # 启用流式输出
+                )
+                
+                # 流式显示回答
+                response_placeholder = st.empty()
+                full_response = ""
+                
+                for chunk in stream:
+                    if chunk.choices[0].delta.content is not None:
+                        full_response += chunk.choices[0].delta.content
+                        response_placeholder.markdown(full_response + "▌")
+                
+                # 显示最终回答
+                response_placeholder.markdown(full_response)
+                
+                # 添加到历史
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": full_response
+                })
+                
+            except Exception as e:
+                error_msg = f"❌ AI 调用失败：{str(e)}"
+                st.error(error_msg)
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": error_msg
+                })
     
-    # 侧边栏 - 对话管理
-    with st.sidebar:
-        st.markdown("### 💬 对话管理")
-        
-        if st.button("🗑️ 清空对话历史", use_container_width=True):
-            st.session_state.chat_history = []
-            st.rerun()
-        
-        st.markdown(f"**对话条数**：{len(st.session_state.chat_history)}")
-    
-    ios_divider()
-    
-    # 快捷提问示例
-    st.markdown("### 💡 试试这些问题")
-    
-    example_questions = [
-        "什么是安防系统的风险评估？",
-        "如何配置 Axis IP 摄像头？",
-        "设备健康度低于 80% 该怎么办？",
-        "安全事件响应的标准流程是什么？",
-        "如何进行系统日常巡检？"
-    ]
-    
-    cols = st.columns(3)
-    for i, question in enumerate(example_questions):
-        with cols[i % 3]:
-            if st.button(f"💬 {question[:15]}...", key=f"example_{i}", use_container_width=True):
-                # 设置待处理问题，触发 AI 回复
-                st.session_state.pending_question = question
+        # 侧边栏 - 对话管理
+        with st.sidebar:
+            st.markdown("### 💬 对话管理")
+            
+            if st.button("🗑️ 清空对话历史", use_container_width=True):
+                st.session_state.chat_history = []
                 st.rerun()
+            
+            st.markdown(f"**对话条数**：{len(st.session_state.chat_history)}")
+        
+        ios_divider()
+        
+        # 快捷提问示例
+        st.markdown("### 💡 试试这些问题")
+        
+        example_questions = [
+            "什么是安防系统的风险评估？",
+            "如何配置 Axis IP 摄像头？",
+            "设备健康度低于 80% 该怎么办？",
+            "安全事件响应的标准流程是什么？",
+            "如何进行系统日常巡检？"
+        ]
+        
+        cols = st.columns(3)
+        for i, question in enumerate(example_questions):
+            with cols[i % 3]:
+                if st.button(f"💬 {question[:15]}...", key=f"example_{i}", use_container_width=True):
+                    # 设置待处理问题，触发 AI 回复
+                    st.session_state.pending_question = question
+                    st.rerun()
+    
+    with tab2:
+        st.title("📝 知识管理")
+        
+        st.markdown("""
+        ### 📚 添加知识到知识库
+        
+        您可以添加文本、文件或网站链接到知识库中，供 AI 学习和检索。
+        """)
+        
+        # 初始化知识库存储
+        if 'knowledge_items' not in st.session_state:
+            st.session_state.knowledge_items = []
+        
+        ios_divider()
+        
+        # 添加知识表单
+        st.subheader("➕ 添加新知识")
+        
+        with st.form("add_knowledge_form"):
+            # 知识类型选择
+            knowledge_type = st.selectbox(
+                "知识类型",
+                ["📝 文本内容", "📄 文件上传", "🔗 网站链接", "📊 Power BI", "⚡ Power Apps"]
+            )
+            
+            # 基本信息
+            title = st.text_input("标题", placeholder="例如：安防系统配置指南")
+            tags = st.text_input("标签", placeholder="例如：安防,配置,指南（用逗号分隔）")
+            
+            # 根据类型显示不同的输入
+            content = ""
+            uploaded_file = None
+            url = ""
+            
+            if knowledge_type == "📝 文本内容":
+                content = st.text_area("内容", height=200, placeholder="输入文本内容...")
+            
+            elif knowledge_type == "📄 文件上传":
+                uploaded_file = st.file_uploader(
+                    "上传文件",
+                    type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'msg', 'eml']
+                )
+                content = st.text_area("文件描述（可选）", height=100)
+            
+            elif knowledge_type == "🔗 网站链接":
+                url = st.text_input("网站 URL", placeholder="https://example.com")
+                content = st.text_area("链接描述（可选）", height=100)
+            
+            elif knowledge_type == "📊 Power BI":
+                url = st.text_input("Power BI 链接", placeholder="https://app.powerbi.com/...")
+                content = st.text_area("报表描述（可选）", height=100)
+            
+            elif knowledge_type == "⚡ Power Apps":
+                url = st.text_input("Power Apps 链接", placeholder="https://apps.powerapps.com/...")
+                content = st.text_area("应用描述（可选）", height=100)
+            
+            submitted = st.form_submit_button("💾 保存到知识库", type="primary")
+            
+            if submitted:
+                if not title:
+                    st.error("❌ 请输入标题！")
+                elif knowledge_type == "📝 文本内容" and not content:
+                    st.error("❌ 请输入内容！")
+                elif knowledge_type in ["🔗 网站链接", "📊 Power BI", "⚡ Power Apps"] and not url:
+                    st.error("❌ 请输入链接！")
+                elif knowledge_type == "📄 文件上传" and not uploaded_file:
+                    st.error("❌ 请上传文件！")
+                else:
+                    # 保存知识条目
+                    item = {
+                        "id": len(st.session_state.knowledge_items) + 1,
+                        "type": knowledge_type,
+                        "title": title,
+                        "content": content,
+                        "tags": tags,
+                        "url": url,
+                        "file_name": uploaded_file.name if uploaded_file else "",
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    st.session_state.knowledge_items.append(item)
+                    st.success(f"✅ 已添加知识条目：{title}")
+                    st.rerun()
+        
+        ios_divider()
+        
+        # 显示已有知识
+        st.subheader("📖 已有知识")
+        
+        if len(st.session_state.knowledge_items) == 0:
+            st.info("暂无知识条目，请添加一些内容到知识库。")
+        else:
+            st.markdown(f"**总计**：{len(st.session_state.knowledge_items)} 条知识")
+            
+            # 显示知识列表
+            for item in reversed(st.session_state.knowledge_items):
+                with st.expander(f"{item['type']} {item['title']}", expanded=False):
+                    st.markdown(f"**ID**：{item['id']}")
+                    st.markdown(f"**类型**：{item['type']}")
+                    st.markdown(f"**标签**：{item['tags']}")
+                    st.markdown(f"**创建时间**：{item['created_at']}")
+                    
+                    if item['content']:
+                        st.markdown("**内容**：")
+                        st.text(item['content'][:200] + "..." if len(item['content']) > 200 else item['content'])
+                    
+                    if item['url']:
+                        st.markdown(f"**链接**：[{item['url']}]({item['url']})")
+                    
+                    if item['file_name']:
+                        st.markdown(f"**文件**：{item['file_name']}")
+                    
+                    # 删除按钮
+                    if st.button(f"🗑️ 删除", key=f"delete_{item['id']}"):
+                        st.session_state.knowledge_items = [
+                            i for i in st.session_state.knowledge_items if i['id'] != item['id']
+                        ]
+                        st.success(f"✅ 已删除：{item['title']}")
+                        st.rerun()
 
 elif page == "🔐 安全评估":
     st.title("🔐 风险评估工具")
