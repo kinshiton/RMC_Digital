@@ -16,7 +16,36 @@ import sys
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ios_style import apply_ios_style, ios_card, ios_badge, ios_divider, IOS_ICONS, IOS_COLORS
+# 尝试导入 iOS 样式，如果失败则使用默认样式
+try:
+    from ios_style import apply_ios_style, ios_card, ios_badge, ios_divider, IOS_ICONS, IOS_COLORS
+    HAS_IOS_STYLE = True
+except ImportError:
+    HAS_IOS_STYLE = False
+    # 定义备用的简单函数
+    def apply_ios_style():
+        st.markdown("""
+        <style>
+        .stApp {
+            background-color: #F2F2F7;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    
+    def ios_card(title, value, subtitle, icon):
+        st.metric(label=f"{icon} {title}", value=value, delta=subtitle)
+    
+    def ios_divider():
+        st.markdown("---")
+    
+    IOS_ICONS = {
+        'device': '📱', 'success': '✅', 'alert': '⚠️', 'knowledge': '📚',
+        'info': 'ℹ️', 'time': '🕐'
+    }
+    IOS_COLORS = {
+        'primary': '#007AFF', 'success': '#34C759', 'warning': '#FF9500',
+        'danger': '#FF3B30'
+    }
 
 # 页面配置
 st.set_page_config(
