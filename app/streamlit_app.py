@@ -1023,53 +1023,50 @@ if not st.session_state.show_knowledge_manager:
         
         # 创建对话（如果需要）
         cm = st.session_state.conv_manager
-        if not cm:
-            st.error("对话管理器未初始化")
-            st.session_state.is_generating = False
-            st.rerun()
-            return
         
-        if not current_conv:
-            create_new_conversation()
-            current_conv = get_current_conversation()
-        
-        # 保存用户消息到数据库
-        cm.add_message(current_conv['id'], "user", question_to_send)
-        
-        # 更新标题（如果是第一条消息）
-        if current_conv and len(current_conv.get('messages', [])) == 0:
-            auto_title = question_to_send[:20] + ("..." if len(question_to_send) > 20 else "")
-            cm.update_conversation_title(current_conv['id'], auto_title)
-        
-        # 调用 AI (集成 RAG 知识库)
-        try:
-            import openai
+        # 检查对话管理器是否可用
+        if cm:
+            if not current_conv:
+                create_new_conversation()
+                current_conv = get_current_conversation()
             
-            # 设置模型
-            if "Reasoner" in selected_model:
-                model = "deepseek-reasoner"
-            elif "GPT-4" in selected_model:
-                model = "gpt-4-vision-preview"
-            elif "Claude" in selected_model:
-                model = "claude-3-opus-20240229"
-            else:
-                model = "deepseek-chat"
+            # 保存用户消息到数据库
+            cm.add_message(current_conv['id'], "user", question_to_send)
             
-            client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+            # 更新标题（如果是第一条消息）
+            if current_conv and len(current_conv.get('messages', [])) == 0:
+                auto_title = question_to_send[:20] + ("..." if len(question_to_send) > 20 else "")
+                cm.update_conversation_title(current_conv['id'], auto_title)
             
-            # === RAG 集成：先搜索知识库 ===
-            kb = st.session_state.kb
-            search_results = kb.search_knowledge(question_to_send, limit=3) if kb else []
-            
-            # 构建系统提示词
-            if search_results:
-                # 有知识库结果，使用 RAG 模式
-                context = "\n\n".join([
-                    f"【知识 {i+1}】{item['title']}\n{item['content'][:500]}"
-                    for i, item in enumerate(search_results)
-                ])
+            # 调用 AI (集成 RAG 知识库)
+            try:
+                import openai
                 
-                system_prompt = f"""你是 GuardNova AI 智能助手。
+                # 设置模型
+                if "Reasoner" in selected_model:
+                    model = "deepseek-reasoner"
+                elif "GPT-4" in selected_model:
+                    model = "gpt-4-vision-preview"
+                elif "Claude" in selected_model:
+                    model = "claude-3-opus-20240229"
+                else:
+                    model = "deepseek-chat"
+                
+                client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+                
+                # === RAG 集成：先搜索知识库 ===
+                kb = st.session_state.kb
+                search_results = kb.search_knowledge(question_to_send, limit=3) if kb else []
+                
+                # 构建系统提示词
+                if search_results:
+                    # 有知识库结果，使用 RAG 模式
+                    context = "\n\n".join([
+                        f"【知识 {i+1}】{item['title']}\n{item['content'][:500]}"
+                        for i, item in enumerate(search_results)
+                    ])
+                    
+                    system_prompt = f"""你是 GuardNova AI 智能助手。
 
 📚 **知识库检索结果** (RAG):
 
@@ -1082,92 +1079,97 @@ if not st.session_state.show_knowledge_manager:
 4. 在回答末尾注明信息来源（知识库/通用知识）
 
 请用专业、友好的语气回答用户问题。"""
-            else:
-                # 没有知识库结果，使用通用模式
-                system_prompt = "你是 GuardNova，一个专业、友好的 AI 智能助手。"
-            
-            # 构建消息列表
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
-            
-            for msg in current_conv['messages'][-10:]:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            # 流式显示
-            with st.chat_message("assistant"):
-                response_placeholder = st.empty()
-                full_response = ""
+                else:
+                    # 没有知识库结果，使用通用模式
+                    system_prompt = "你是 GuardNova，一个专业、友好的 AI 智能助手。"
                 
-                stream = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=0.7,
-                    max_tokens=2000,
-                    stream=True
-                )
+                # 构建消息列表
+                messages = [
+                    {"role": "system", "content": system_prompt}
+                ]
                 
-                for chunk in stream:
-                    if chunk.choices[0].delta.content is not None:
-                        full_response += chunk.choices[0].delta.content
-                        response_placeholder.markdown(full_response + "▌")
+                for msg in current_conv['messages'][-10:]:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+                
+                # 流式显示
+                with st.chat_message("assistant"):
+                    response_placeholder = st.empty()
+                    full_response = ""
                     
-                    # 检查是否停止
-                    if not st.session_state.is_generating:
-                        break
-                
-                # 显示回答（支持代码格式化）
-                response_placeholder.empty()
-                
-                # 使用自定义渲染函数显示回答
-                with response_placeholder.container():
-                    render_message_with_code(full_response)
+                    stream = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=2000,
+                        stream=True
+                    )
                     
-                    # 添加知识来源标注（带下载链接）
-                    if search_results:
-                        st.markdown("---")
-                        st.markdown("📚 **参考知识:**")
+                    for chunk in stream:
+                        if chunk.choices[0].delta.content is not None:
+                            full_response += chunk.choices[0].delta.content
+                            response_placeholder.markdown(full_response + "▌")
                         
-                        for item in search_results:
-                            col_info, col_download = st.columns([4, 1])
+                        # 检查是否停止
+                        if not st.session_state.is_generating:
+                            break
+                    
+                    # 显示回答（支持代码格式化）
+                    response_placeholder.empty()
+                    
+                    # 使用自定义渲染函数显示回答
+                    with response_placeholder.container():
+                        render_message_with_code(full_response)
+                        
+                        # 添加知识来源标注（带下载链接）
+                        if search_results:
+                            st.markdown("---")
+                            st.markdown("📚 **参考知识:**")
                             
-                            with col_info:
-                                type_icon = {'text': '📝', 'file': '📄', 'url': '🔗'}.get(item['content_type'], '📄')
-                                st.markdown(f"{type_icon} **{item['title']}** ({item['content_type']})")
-                            
-                            with col_download:
-                                # 如果是文件类型，提供下载按钮
-                                if item['content_type'] == 'file' and item.get('file_path'):
-                                    try:
-                                        file_path = Path(item['file_path'])
-                                        if file_path.exists():
-                                            with open(file_path, 'rb') as f:
-                                                st.download_button(
-                                                    "📥",
-                                                    data=f.read(),
-                                                    file_name=file_path.name,
-                                                    key=f"dl_stream_{item['id']}",
-                                                    help="下载文件"
-                                                )
-                                    except:
-                                        pass
-                                # 如果是链接类型，显示访问按钮
-                                elif item['content_type'] == 'url' and item.get('external_url'):
-                                    st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
-            
-            # 保存 AI 回复到数据库
-            cm.add_message(current_conv['id'], "assistant", full_response)
-            
-            # 重置生成状态
+                            for item in search_results:
+                                col_info, col_download = st.columns([4, 1])
+                                
+                                with col_info:
+                                    type_icon = {'text': '📝', 'file': '📄', 'url': '🔗'}.get(item['content_type'], '📄')
+                                    st.markdown(f"{type_icon} **{item['title']}** ({item['content_type']})")
+                                
+                                with col_download:
+                                    # 如果是文件类型，提供下载按钮
+                                    if item['content_type'] == 'file' and item.get('file_path'):
+                                        try:
+                                            file_path = Path(item['file_path'])
+                                            if file_path.exists():
+                                                with open(file_path, 'rb') as f:
+                                                    st.download_button(
+                                                        "📥",
+                                                        data=f.read(),
+                                                        file_name=file_path.name,
+                                                        key=f"dl_stream_{item['id']}",
+                                                        help="下载文件"
+                                                    )
+                                        except:
+                                            pass
+                                    # 如果是链接类型，显示访问按钮
+                                    elif item['content_type'] == 'url' and item.get('external_url'):
+                                        st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
+                
+                # 保存 AI 回复到数据库
+                cm.add_message(current_conv['id'], "assistant", full_response)
+                
+                # 重置生成状态
+                st.session_state.is_generating = False
+                st.rerun()
+                
+            except Exception as e:
+                st.session_state.is_generating = False
+                error_msg = f"抱歉，出现错误：{str(e)}"
+                
+                # 保存错误消息到数据库
+                if cm and current_conv:
+                    cm.add_message(current_conv['id'], "assistant", error_msg)
+                
+                st.error(f"❌ {str(e)}")
+                st.rerun()
+        else:
+            # 对话管理器未初始化
             st.session_state.is_generating = False
-            st.rerun()
-            
-        except Exception as e:
-            st.session_state.is_generating = False
-            error_msg = f"抱歉，出现错误：{str(e)}"
-            
-            # 保存错误消息到数据库
-            cm.add_message(current_conv['id'], "assistant", error_msg)
-            
-            st.error(f"❌ {str(e)}")
-            st.rerun()
+            st.error("❌ 对话管理器未初始化，请刷新页面重试")
