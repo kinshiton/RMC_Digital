@@ -487,17 +487,10 @@ with tab1:
             )
         
         # 发送按钮
-        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
+        col_btn1, col_btn2 = st.columns([1, 5])
         
         with col_btn1:
             send_button = st.button("🚀 发送", type="primary", use_container_width=True)
-        
-        with col_btn2:
-            clear_button = st.button("🗑️ 清空", use_container_width=True)
-        
-        if clear_button:
-            st.session_state.user_input = ""
-            st.rerun()
     
     # 处理发送
     if send_button and (user_question or uploaded_images or uploaded_files) and has_api:
