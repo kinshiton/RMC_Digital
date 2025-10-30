@@ -1,6 +1,4 @@
-# 极简依赖 - 只包含核心必需包
-
-streamlit==1.28.0
-pandas==2.0.3
-plotly==5.17.0
-requests==2.31.0
+# 超级极简 - 不指定版本，让 Streamlit Cloud 自动选择
+streamlit
+pandas
+plotly
