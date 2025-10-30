@@ -391,15 +391,25 @@ def group_conversations_by_time():
     }
     
     for conv in st.session_state.conversations:
-        conv_date = conv['created_at'].date()
+        # 确保 created_at 是 datetime 对象
+        created_at = conv['created_at']
+        if isinstance(created_at, str):
+            try:
+                created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                conv['created_at'] = created_at
+            except:
+                created_at = datetime.now()
+                conv['created_at'] = created_at
+        
+        conv_date = created_at.date()
         
         if conv_date == today:
             groups['今天'].append(conv)
         elif conv_date == yesterday:
             groups['昨天'].append(conv)
-        elif (now - conv['created_at']).days <= 7:
+        elif (now - created_at).days <= 7:
             groups['7 天内'].append(conv)
-        elif (now - conv['created_at']).days <= 30:
+        elif (now - created_at).days <= 30:
             groups['30 天内'].append(conv)
         else:
             groups['更早'].append(conv)
@@ -410,7 +420,16 @@ def export_conversation(conv):
     """导出对话"""
     content = f"GuardNova 对话记录\n"
     content += f"标题：{conv['title']}\n"
-    content += f"创建时间：{conv['created_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
+    
+    # 确保 created_at 是 datetime 对象
+    created_at = conv['created_at']
+    if isinstance(created_at, str):
+        try:
+            created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+        except:
+            created_at = datetime.now()
+    
+    content += f"创建时间：{created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
     content += f"{'='*50}\n\n"
     
     for msg in conv['messages']:
@@ -470,7 +489,15 @@ with st.sidebar:
                     use_container_width=True
                 )
                 
-                st.caption(f"创建于：{conv['created_at'].strftime('%m-%d %H:%M')}")
+                # 确保 created_at 是 datetime 对象
+                created_at = conv['created_at']
+                if isinstance(created_at, str):
+                    try:
+                        created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        created_at = datetime.now()
+                
+                st.caption(f"创建于：{created_at.strftime('%m-%d %H:%M')}")
                 st.caption(f"消息数：{len(conv['messages'])}")
 
 # ===== 主内容区域 =====
