@@ -679,7 +679,7 @@ if st.session_state.show_knowledge_manager:
             col_submit, col_cancel = st.columns(2)
             
             with col_submit:
-                if st.button("💾 保存到数据库", type="primary", use_container_width=True):
+                if st.button("💾 保存到数据库", use_container_width=True):
                     if not title:
                         st.error("❌ 请输入标题")
                     elif knowledge_type == "📝 文本" and not content:
