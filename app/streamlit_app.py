@@ -199,23 +199,34 @@ header {visibility: visible;}
     background-color: #fafbff !important;
 }
 
-/* 文件上传器美化 */
+/* 文件上传器美化 - 紧凑版 */
 .stFileUploader {
-    border: 2px dashed #667eea !important;
+    border: 1px solid #dee2e6 !important;
     border-radius: 10px !important;
-    padding: 10px !important;
-    background-color: rgba(102, 126, 234, 0.05) !important;
+    padding: 8px 12px !important;
+    background-color: #f8f9fa !important;
     transition: all 0.3s ease !important;
 }
 
 .stFileUploader:hover {
-    border-color: #764ba2 !important;
-    background-color: rgba(102, 126, 234, 0.1) !important;
+    border-color: #667eea !important;
+    background-color: #ffffff !important;
 }
 
 .stFileUploader label {
-    color: #667eea !important;
-    font-weight: 600 !important;
+    color: #6c757d !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+}
+
+.stFileUploader section {
+    padding: 0 !important;
+}
+
+/* 上传按钮样式 */
+.stFileUploader button {
+    font-size: 13px !important;
+    padding: 4px 12px !important;
 }
 
 /* 发送按钮美化 */
@@ -407,6 +418,28 @@ with tab1:
     我可以帮您解答各类问题，提供专业的技术支持和建议！
     """)
     
+    # 模型选择和配置
+    col_model1, col_model2 = st.columns([2, 3])
+    
+    with col_model1:
+        selected_model = st.selectbox(
+            "🤖 选择 AI 模型",
+            [
+                "DeepSeek Chat (文本)",
+                "DeepSeek Reasoner (推理)",
+                "GPT-4 Vision (支持图片)",
+                "Claude 3 (支持图片)"
+            ],
+            index=0
+        )
+    
+    with col_model2:
+        # 根据选择的模型显示提示
+        if "Vision" in selected_model or "Claude" in selected_model:
+            st.info("✅ 此模型支持图片识别")
+        else:
+            st.warning("⚠️ 此模型仅支持文本，无法识别图片")
+    
     # 检查是否配置了 API
     try:
         api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
@@ -416,6 +449,20 @@ with tab1:
         has_api = False
         api_key = ""
         model = "deepseek-chat"
+    
+    # 根据选择设置模型
+    if "Reasoner" in selected_model:
+        model = "deepseek-reasoner"
+    elif "GPT-4" in selected_model:
+        model = "gpt-4-vision-preview"
+        if not st.secrets.get("OPENAI_API_KEY", ""):
+            st.error("❌ 请配置 OPENAI_API_KEY")
+            has_api = False
+    elif "Claude" in selected_model:
+        model = "claude-3-opus-20240229"
+        if not st.secrets.get("ANTHROPIC_API_KEY", ""):
+            st.error("❌ 请配置 ANTHROPIC_API_KEY")
+            has_api = False
     
     if not has_api:
         st.warning("""
@@ -428,7 +475,7 @@ with tab1:
         ```
         """)
     else:
-        st.success("✅ AI 已就绪，随时为您服务")
+        st.success(f"✅ AI 已就绪：{selected_model}")
     
     st.markdown("---")
     
@@ -449,68 +496,49 @@ with tab1:
     # 自定义输入区域
     st.markdown("### 💬 发送消息")
     
-    # 创建一个容器用于输入
-    input_container = st.container()
+    # 文本输入
+    user_question = st.text_area(
+        "输入您的问题",
+        height=120,
+        placeholder="💬 请输入您的问题...\n（支持多行输入，Shift+Enter 换行）",
+        key="user_input",
+        label_visibility="collapsed"
+    )
     
-    with input_container:
-        # 文本输入
-        col1, col2 = st.columns([4, 1])
-        
-        with col1:
-            user_question = st.text_area(
-                "输入您的问题",
-                height=100,
-                placeholder="💬 请输入您的问题...\n（支持多行输入，输入框会自动调整高度）",
-                key="user_input",
-                label_visibility="collapsed"
-            )
-        
-        with col2:
-            st.markdown("**📎 附件**")
-            
-            # 图片上传
-            uploaded_images = st.file_uploader(
-                "上传图片",
-                type=['jpg', 'jpeg', 'png', 'gif', 'webp'],
-                accept_multiple_files=True,
-                key="image_upload",
-                label_visibility="collapsed"
-            )
-            
-            # 文件上传
-            uploaded_files = st.file_uploader(
-                "上传文件",
-                type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt'],
-                accept_multiple_files=True,
-                key="file_upload",
-                label_visibility="collapsed"
-            )
-        
-        # 发送按钮
-        col_btn1, col_btn2 = st.columns([1, 5])
-        
-        with col_btn1:
-            send_button = st.button("🚀 发送", type="primary", use_container_width=True)
+    # 附件和发送按钮在一行
+    col_att, col_btn = st.columns([4, 1])
+    
+    with col_att:
+        # 合并的文件上传器（支持图片和文件）
+        uploaded_attachments = st.file_uploader(
+            "📎 上传附件（图片/文件）",
+            type=['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt'],
+            accept_multiple_files=True,
+            key="attachments_upload",
+            help="支持图片、文档等多种格式"
+        )
+    
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True)  # 对齐按钮
+        send_button = st.button("🚀 发送", type="primary", use_container_width=True)
     
     # 处理发送
-    if send_button and (user_question or uploaded_images or uploaded_files) and has_api:
+    if send_button and (user_question or uploaded_attachments) and has_api:
         # 准备附件
         attachments = []
         
-        # 处理图片
-        if uploaded_images:
-            for img in uploaded_images:
+        # 处理所有附件
+        if uploaded_attachments:
+            for file in uploaded_attachments:
+                # 判断是图片还是文件
+                file_ext = file.name.split('.')[-1].lower()
+                if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                    file_type = 'image'
+                else:
+                    file_type = 'file'
+                
                 attachments.append({
-                    'type': 'image',
-                    'name': img.name,
-                    'data': img
-                })
-        
-        # 处理文件
-        if uploaded_files:
-            for file in uploaded_files:
-                attachments.append({
-                    'type': 'file',
+                    'type': file_type,
                     'name': file.name,
                     'data': file
                 })
