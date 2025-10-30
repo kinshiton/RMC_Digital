@@ -1,282 +1,347 @@
 """
 GuardNova - AI 智能助手
-专注于知识库管理和智能问答
+模仿 DeepSeek 界面风格
 """
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 
 # 页面配置
 st.set_page_config(
-    page_title="🛡️ GuardNova",
-    page_icon="🛡️",
+    page_title="GuardNova",
+    page_icon="🦅",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 自定义样式
+# DeepSeek 风格的 CSS
 st.markdown("""
 <style>
-/* 全局背景 */
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 .stApp {
+    background-color: #ffffff;
+}
+
+/* 隐藏默认的 Streamlit 元素 */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* 侧边栏样式 - DeepSeek 风格 */
+section[data-testid="stSidebar"] {
+    background-color: #fafafa;
+    border-right: 1px solid #e5e7eb;
+    padding: 0 !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    padding-top: 2rem;
+}
+
+/* 顶部品牌区域 */
+.brand-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.brand-logo {
+    font-size: 28px;
+    margin-right: 10px;
+}
+
+.brand-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+/* 新建对话按钮 */
+.new-chat-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    margin: 0 1rem 1.5rem 1rem;
+    width: calc(100% - 2rem);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.new-chat-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* 历史对话分组 */
+.chat-group-title {
+    padding: 0.5rem 1.5rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 对话项 */
+.chat-item {
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+}
+
+.chat-item:hover {
+    background-color: #f3f4f6;
+    border-left-color: #667eea;
+}
+
+.chat-item.active {
+    background-color: #ede9fe;
+    border-left-color: #764ba2;
+}
+
+.chat-item-title {
+    font-size: 14px;
+    color: #1f2937;
+    font-weight: 500;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-item-time {
+    font-size: 12px;
+    color: #9ca3af;
 }
 
 /* 主内容区域 */
 .main .block-container {
-    background-color: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
-    padding: 2rem;
-    margin-top: 1rem;
+    padding: 0 !important;
+    max-width: 100% !important;
 }
 
-/* 侧边栏样式 */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
-    color: white;
+/* 顶部栏 */
+.top-bar {
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-section[data-testid="stSidebar"] * {
-    color: white !important;
+.top-bar-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
 }
 
-/* 侧边栏展开框样式 - 使用渐变背景 */
-section[data-testid="stSidebar"] .streamlit-expanderHeader {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
-    border-radius: 10px;
+/* 对话容器 */
+.chat-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem 200px 1rem;
 }
 
-section[data-testid="stSidebar"] .streamlit-expanderContent {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%) !important;
-    border-radius: 0 0 10px 10px;
-    padding: 1rem;
+/* 欢迎界面 */
+.welcome-screen {
+    text-align: center;
+    padding: 4rem 2rem;
 }
 
-section[data-testid="stSidebar"] [data-testid="stExpander"] {
+.welcome-logo {
+    font-size: 64px;
+    margin-bottom: 1rem;
+}
+
+.welcome-title {
+    font-size: 32px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.welcome-subtitle {
+    font-size: 16px;
+    color: #6b7280;
+    margin-bottom: 2rem;
+}
+
+/* 聊天消息 */
+.stChatMessage {
     background: transparent !important;
+    padding: 1.5rem 0 !important;
     border: none !important;
 }
 
-/* 展开框内的元素字体改为黑色 */
-section[data-testid="stSidebar"] .streamlit-expanderContent * {
-    color: #000000 !important;
+.stChatMessage[data-testid="user"] {
+    background: #f9fafb !important;
+    margin-left: -2rem;
+    margin-right: -2rem;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
 }
 
-/* 展开框内的按钮文字也是黑色 */
-section[data-testid="stSidebar"] .streamlit-expanderContent button {
-    color: #000000 !important;
+/* 输入区域容器 - 固定在底部 */
+.input-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    padding: 1rem 0;
+    z-index: 1000;
 }
 
-/* 展开框内的输入框文字黑色 */
-section[data-testid="stSidebar"] .streamlit-expanderContent input {
-    color: #000000 !important;
+.input-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 2rem;
 }
 
-/* 展开框内的标签文字黑色 */
-section[data-testid="stSidebar"] .streamlit-expanderContent label {
-    color: #000000 !important;
-}
-
-/* 展开框内的普通文本黑色 */
-section[data-testid="stSidebar"] .streamlit-expanderContent p,
-section[data-testid="stSidebar"] .streamlit-expanderContent span,
-section[data-testid="stSidebar"] .streamlit-expanderContent div {
-    color: #000000 !important;
-}
-
-/* 聊天消息样式 */
-.stChatMessage {
-    background-color: #f8f9fa;
-    border-radius: 15px;
-    padding: 1rem;
-    margin: 0.5rem 0;
-}
-
-/* 按钮样式 */
-.stButton > button {
-    border-radius: 10px;
-    transition: all 0.3s;
-}
-
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
-/* 输入框样式 */
-.stTextInput > div > div > input {
-    border-radius: 10px;
-}
-
-/* 隐藏默认菜单 */
-#MainMenu {visibility: visible;}
-header {visibility: visible;}
-
-/* 标签页样式 */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-
-.stTabs [data-baseweb="tab"] {
-    border-radius: 10px 10px 0 0;
-    padding: 10px 20px;
-    background-color: #e9ecef;
-}
-
-.stTabs [aria-selected="true"] {
-    background-color: #667eea;
-    color: white;
-}
-
-/* Success 消息样式 - 白色文字 */
-.stSuccess {
-    background-color: rgba(52, 199, 89, 0.2) !important;
-    color: white !important;
-    border-left: 4px solid #34C759 !important;
-    border-radius: 10px !important;
-}
-
-.stSuccess > div {
-    color: white !important;
-}
-
-.stSuccess p {
-    color: white !important;
-}
-
-/* Warning 消息样式 - 白色文字 */
-.stWarning {
-    background-color: rgba(255, 149, 0, 0.2) !important;
-    color: white !important;
-    border-left: 4px solid #FF9500 !important;
-    border-radius: 10px !important;
-}
-
-.stWarning > div {
-    color: white !important;
-}
-
-.stWarning p {
-    color: white !important;
-}
-
-/* Info 消息样式 - 白色文字 */
-.stInfo {
-    background-color: rgba(0, 122, 255, 0.2) !important;
-    color: white !important;
-    border-left: 4px solid #007AFF !important;
-    border-radius: 10px !important;
-}
-
-.stInfo > div {
-    color: white !important;
-}
-
-.stInfo p {
-    color: white !important;
-}
-
-/* 输入区域美化 */
+/* 文本输入框 */
 .stTextArea textarea {
-    border-radius: 15px !important;
-    border: 2px solid #667eea !important;
-    background-color: #ffffff !important;
-    padding: 15px !important;
-    font-size: 16px !important;
-    line-height: 1.6 !important;
-    transition: all 0.3s ease !important;
-    resize: vertical !important;
-    min-height: 100px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+    resize: none !important;
+    min-height: 24px !important;
+    max-height: 200px !important;
+    transition: all 0.2s !important;
 }
 
 .stTextArea textarea:focus {
-    border-color: #764ba2 !important;
-    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
-    background-color: #fafbff !important;
-}
-
-/* 文件上传器美化 - 紧凑版 */
-.stFileUploader {
-    border: 1px solid #dee2e6 !important;
-    border-radius: 10px !important;
-    padding: 8px 12px !important;
-    background-color: #f8f9fa !important;
-    transition: all 0.3s ease !important;
-}
-
-.stFileUploader:hover {
     border-color: #667eea !important;
-    background-color: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
 }
 
-.stFileUploader label {
-    color: #6c757d !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
+/* 按钮组 */
+.input-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
 }
 
-.stFileUploader section {
+/* 文件上传器 */
+.stFileUploader {
+    border: none !important;
+    background: transparent !important;
     padding: 0 !important;
 }
 
-/* 上传按钮样式 */
-.stFileUploader button {
+.stFileUploader label {
     font-size: 13px !important;
-    padding: 4px 12px !important;
+    color: #6b7280 !important;
 }
 
-/* 发送按钮美化 */
+/* 发送按钮 */
 .stButton > button[kind="primary"] {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
     color: white !important;
     border: none !important;
-    border-radius: 12px !important;
-    padding: 12px 24px !important;
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-    transition: all 0.3s ease !important;
+    border-radius: 8px !important;
+    padding: 8px 24px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s !important;
 }
 
 .stButton > button[kind="primary"]:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
 }
 
-/* 清空按钮 */
+/* 次要按钮 */
 .stButton > button:not([kind="primary"]) {
-    background-color: #f8f9fa !important;
-    color: #6c757d !important;
-    border: 2px solid #dee2e6 !important;
-    border-radius: 12px !important;
-    transition: all 0.3s ease !important;
+    background: #f3f4f6 !important;
+    color: #4b5563 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+    transition: all 0.2s !important;
 }
 
 .stButton > button:not([kind="primary"]):hover {
-    background-color: #e9ecef !important;
-    border-color: #adb5bd !important;
-    transform: translateY(-1px) !important;
+    background: #e5e7eb !important;
+}
+
+/* 选择框 */
+.stSelectbox {
+    font-size: 14px !important;
+}
+
+/* Success/Warning/Info 消息 */
+.stSuccess, .stWarning, .stInfo {
+    padding: 0.75rem 1rem !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+}
+
+/* 标签页 */
+.stTabs {
+    background: transparent !important;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.stTabs [data-baseweb="tab"] {
+    padding: 0.75rem 1.5rem;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #667eea;
+    border-bottom-color: #667eea;
+}
+
+/* 展开框 */
+section[data-testid="stSidebar"] .streamlit-expanderHeader {
+    background: transparent !important;
+    border: none !important;
+    padding: 0.75rem 1.5rem !important;
+}
+
+section[data-testid="stSidebar"] .streamlit-expanderContent {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ===== 初始化 Session State =====
 if 'conversations' not in st.session_state:
-    st.session_state.conversations = [
-        {
-            'id': 1,
-            'title': '新对话',
-            'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'messages': []
-        }
-    ]
+    st.session_state.conversations = []
 
 if 'current_conversation_id' not in st.session_state:
-    st.session_state.current_conversation_id = 1
+    st.session_state.current_conversation_id = None
 
 if 'knowledge_items' not in st.session_state:
     st.session_state.knowledge_items = []
@@ -284,37 +349,68 @@ if 'knowledge_items' not in st.session_state:
 # ===== 辅助函数 =====
 def get_current_conversation():
     """获取当前对话"""
+    if not st.session_state.current_conversation_id:
+        return None
     for conv in st.session_state.conversations:
         if conv['id'] == st.session_state.current_conversation_id:
             return conv
-    return st.session_state.conversations[0]
+    return None
 
 def create_new_conversation():
     """创建新对话"""
-    new_id = max([c['id'] for c in st.session_state.conversations]) + 1
+    new_id = len(st.session_state.conversations) + 1
     new_conv = {
         'id': new_id,
-        'title': f'新对话 {new_id}',
-        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'title': '新对话',
+        'created_at': datetime.now(),
         'messages': []
     }
-    st.session_state.conversations.append(new_conv)
+    st.session_state.conversations.insert(0, new_conv)
     st.session_state.current_conversation_id = new_id
     st.rerun()
 
 def delete_conversation(conv_id):
     """删除对话"""
-    if len(st.session_state.conversations) > 1:
-        st.session_state.conversations = [c for c in st.session_state.conversations if c['id'] != conv_id]
-        if st.session_state.current_conversation_id == conv_id:
-            st.session_state.current_conversation_id = st.session_state.conversations[0]['id']
-        st.rerun()
+    st.session_state.conversations = [c for c in st.session_state.conversations if c['id'] != conv_id]
+    if st.session_state.current_conversation_id == conv_id:
+        st.session_state.current_conversation_id = None
+    st.rerun()
+
+def group_conversations_by_time():
+    """按时间分组对话"""
+    now = datetime.now()
+    today = now.date()
+    yesterday = (now - timedelta(days=1)).date()
+    
+    groups = {
+        '今天': [],
+        '昨天': [],
+        '7 天内': [],
+        '30 天内': [],
+        '更早': []
+    }
+    
+    for conv in st.session_state.conversations:
+        conv_date = conv['created_at'].date()
+        
+        if conv_date == today:
+            groups['今天'].append(conv)
+        elif conv_date == yesterday:
+            groups['昨天'].append(conv)
+        elif (now - conv['created_at']).days <= 7:
+            groups['7 天内'].append(conv)
+        elif (now - conv['created_at']).days <= 30:
+            groups['30 天内'].append(conv)
+        else:
+            groups['更早'].append(conv)
+    
+    return {k: v for k, v in groups.items() if v}
 
 def export_conversation(conv):
-    """导出对话为文本"""
+    """导出对话"""
     content = f"GuardNova 对话记录\n"
     content += f"标题：{conv['title']}\n"
-    content += f"创建时间：{conv['created_at']}\n"
+    content += f"创建时间：{conv['created_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
     content += f"{'='*50}\n\n"
     
     for msg in conv['messages']:
@@ -323,163 +419,100 @@ def export_conversation(conv):
     
     return content
 
-def update_conversation_title(conv_id, new_title):
-    """更新对话标题"""
-    for conv in st.session_state.conversations:
-        if conv['id'] == conv_id:
-            conv['title'] = new_title
-            break
-
-# ===== 侧边栏 - 历史记录管理 =====
+# ===== 侧边栏 =====
 with st.sidebar:
-    st.markdown("# 🛡️ GuardNova")
-    st.markdown("### AI 智能助手")
-    st.markdown("---")
+    # 品牌标识
+    st.markdown("""
+    <div class="brand-header">
+        <div class="brand-logo">🦅</div>
+        <div class="brand-name">GuardNova</div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # 新建对话按钮
-    if st.button("➕ 新建对话", use_container_width=True, type="primary"):
+    if st.button("➕ 新建对话", key="new_chat", use_container_width=True):
         create_new_conversation()
     
     st.markdown("---")
-    st.markdown("### 📝 我的历史记录")
     
-    # 显示所有对话
-    for conv in reversed(st.session_state.conversations):
-        is_current = conv['id'] == st.session_state.current_conversation_id
+    # 历史对话列表
+    grouped_convs = group_conversations_by_time()
+    
+    for group_name, convs in grouped_convs.items():
+        st.markdown(f'<div class="chat-group-title">{group_name}</div>', unsafe_allow_html=True)
         
-        with st.expander(
-            f"{'📌 ' if is_current else '💬 '}{conv['title']}", 
-            expanded=is_current
-        ):
-            # 切换到此对话
-            if not is_current:
-                if st.button("📖 打开", key=f"open_{conv['id']}", use_container_width=True):
-                    st.session_state.current_conversation_id = conv['id']
-                    st.rerun()
+        for conv in convs:
+            is_active = conv['id'] == st.session_state.current_conversation_id
+            active_class = "active" if is_active else ""
             
-            # 编辑标题
-            new_title = st.text_input(
-                "修改标题",
-                value=conv['title'],
-                key=f"title_{conv['id']}"
-            )
-            if new_title != conv['title']:
-                if st.button("💾 保存标题", key=f"save_{conv['id']}", use_container_width=True):
-                    update_conversation_title(conv['id'], new_title)
-                    st.success("✅ 标题已更新")
-                    st.rerun()
-            
-            # 下载对话
-            export_text = export_conversation(conv)
-            st.download_button(
-                "📥 下载对话",
-                data=export_text,
-                file_name=f"GuardNova_{conv['title']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain",
-                key=f"download_{conv['id']}",
-                use_container_width=True
-            )
-            
-            # 删除对话
-            if len(st.session_state.conversations) > 1:
-                if st.button("🗑️ 删除对话", key=f"delete_{conv['id']}", use_container_width=True):
-                    delete_conversation(conv['id'])
-            
-            # 显示信息
-            st.caption(f"创建于：{conv['created_at']}")
-            st.caption(f"消息数：{len(conv['messages'])}")
-    
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; font-size: 12px; opacity: 0.7;'>
-        <p>GuardNova v1.0</p>
-        <p>AI-Powered Assistant</p>
-    </div>
-    """, unsafe_allow_html=True)
+            # 使用 expander 显示对话
+            with st.expander(f"{'📌 ' if is_active else '💬 '}{conv['title']}", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if not is_active:
+                        if st.button("打开", key=f"open_{conv['id']}", use_container_width=True):
+                            st.session_state.current_conversation_id = conv['id']
+                            st.rerun()
+                
+                with col2:
+                    if st.button("删除", key=f"del_{conv['id']}", use_container_width=True):
+                        delete_conversation(conv['id'])
+                
+                # 导出按钮
+                export_text = export_conversation(conv)
+                st.download_button(
+                    "📥 导出",
+                    data=export_text,
+                    file_name=f"GuardNova_{conv['title']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    key=f"export_{conv['id']}",
+                    use_container_width=True
+                )
+                
+                st.caption(f"创建于：{conv['created_at'].strftime('%m-%d %H:%M')}")
+                st.caption(f"消息数：{len(conv['messages'])}")
 
 # ===== 主内容区域 =====
-st.title("🛡️ GuardNova AI 智能助手")
-
-# 获取当前对话
 current_conv = get_current_conversation()
 
-# 显示当前对话标题
-st.markdown(f"### 当前对话：{current_conv['title']}")
-st.markdown("---")
-
-# 创建标签页
-tab1, tab2 = st.tabs(["🤖 智能问答", "📝 知识管理"])
-
-# ===== Tab 1: 智能问答 =====
-with tab1:
+# 如果没有对话，显示欢迎界面
+if not current_conv:
     st.markdown("""
-    💬 **GuardNova 智能问答系统**
+    <div class="welcome-screen">
+        <div class="welcome-logo">🦅</div>
+        <div class="welcome-title">今天有什么可以帮到您?</div>
+        <div class="welcome-subtitle">GuardNova AI 智能助手，随时为您服务</div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    我可以帮您解答各类问题，提供专业的技术支持和建议！
-    """)
+    # 快捷问题
+    st.markdown("### 💡 试试这些问题")
     
-    # 模型选择和配置
-    col_model1, col_model2 = st.columns([2, 3])
+    cols = st.columns(3)
+    example_questions = [
+        "什么是人工智能？",
+        "如何提高工作效率？",
+        "Python 编程入门建议？",
+        "数据安全最佳实践？",
+        "项目管理的关键要素？",
+        "如何学习新技能？"
+    ]
     
-    with col_model1:
-        selected_model = st.selectbox(
-            "🤖 选择 AI 模型",
-            [
-                "DeepSeek Chat (文本)",
-                "DeepSeek Reasoner (推理)",
-                "GPT-4 Vision (支持图片)",
-                "Claude 3 (支持图片)"
-            ],
-            index=0
-        )
+    for i, question in enumerate(example_questions):
+        with cols[i % 3]:
+            if st.button(f"💬 {question}", key=f"welcome_q_{i}", use_container_width=True):
+                create_new_conversation()
+                st.session_state.pending_question = question
+                st.rerun()
+else:
+    # 显示对话
+    st.markdown(f'<div class="top-bar"><div class="top-bar-title">{current_conv["title"]}</div></div>', unsafe_allow_html=True)
     
-    with col_model2:
-        # 根据选择的模型显示提示
-        if "Vision" in selected_model or "Claude" in selected_model:
-            st.info("✅ 此模型支持图片识别")
-        else:
-            st.warning("⚠️ 此模型仅支持文本，无法识别图片")
+    # 对话容器
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     
-    # 检查是否配置了 API
-    try:
-        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
-        model = st.secrets.get("DEEPSEEK_MODEL", "deepseek-chat")
-        has_api = bool(api_key)
-    except:
-        has_api = False
-        api_key = ""
-        model = "deepseek-chat"
-    
-    # 根据选择设置模型
-    if "Reasoner" in selected_model:
-        model = "deepseek-reasoner"
-    elif "GPT-4" in selected_model:
-        model = "gpt-4-vision-preview"
-        if not st.secrets.get("OPENAI_API_KEY", ""):
-            st.error("❌ 请配置 OPENAI_API_KEY")
-            has_api = False
-    elif "Claude" in selected_model:
-        model = "claude-3-opus-20240229"
-        if not st.secrets.get("ANTHROPIC_API_KEY", ""):
-            st.error("❌ 请配置 ANTHROPIC_API_KEY")
-            has_api = False
-    
-    if not has_api:
-        st.warning("""
-        ⚠️ **AI 功能未配置**
-        
-        请在 Streamlit Cloud Settings → Secrets 中配置：
-        ```toml
-        DEEPSEEK_API_KEY = "your-api-key"
-        DEEPSEEK_MODEL = "deepseek-chat"
-        ```
-        """)
-    else:
-        st.success(f"✅ AI 已就绪：{selected_model}")
-    
-    st.markdown("---")
-    
-    # 显示对话历史
+    # 显示历史消息
     for message in current_conv['messages']:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -487,309 +520,191 @@ with tab1:
             if 'attachments' in message and message['attachments']:
                 for att in message['attachments']:
                     if att['type'] == 'image':
-                        st.image(att['data'], caption=att['name'], width=300)
+                        st.image(att['data'], caption=att['name'], width=400)
                     elif att['type'] == 'file':
                         st.info(f"📎 附件：{att['name']}")
     
-    st.markdown("---")
-    
-    # 自定义输入区域
-    st.markdown("### 💬 发送消息")
-    
-    # 文本输入
-    user_question = st.text_area(
-        "输入您的问题",
-        height=120,
-        placeholder="💬 请输入您的问题...\n（支持多行输入，Shift+Enter 换行）",
-        key="user_input",
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ===== 底部输入区域 =====
+st.markdown('<div class="input-container"><div class="input-wrapper">', unsafe_allow_html=True)
+
+# 模型选择
+col_model, col_status = st.columns([2, 3])
+
+with col_model:
+    selected_model = st.selectbox(
+        "🤖 AI 模型",
+        [
+            "DeepSeek Chat",
+            "DeepSeek Reasoner",
+            "GPT-4 Vision",
+            "Claude 3"
+        ],
+        index=0,
         label_visibility="collapsed"
     )
+
+with col_status:
+    # 检查 API 配置
+    try:
+        api_key = st.secrets.get("DEEPSEEK_API_KEY", "")
+        has_api = bool(api_key)
+    except:
+        has_api = False
+        api_key = ""
     
-    # 附件和发送按钮在一行
-    col_att, col_btn = st.columns([4, 1])
+    if has_api:
+        if "Vision" in selected_model or "Claude" in selected_model:
+            st.info("✅ 支持图片识别")
+        else:
+            st.caption("💬 仅支持文本对话")
+
+# 文本输入
+user_question = st.text_area(
+    "输入消息",
+    height=80,
+    placeholder="给 GuardNova 发送消息...",
+    key="user_input",
+    label_visibility="collapsed"
+)
+
+# 按钮行
+col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+
+with col1:
+    # 文件上传
+    uploaded_attachments = st.file_uploader(
+        "📎 附件",
+        type=['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'docx', 'doc', 'pptx', 'txt'],
+        accept_multiple_files=True,
+        key="attachments",
+        label_visibility="visible"
+    )
+
+with col2:
+    st.caption("💡 深度思考")
+
+with col3:
+    st.caption("🔍 联网搜索")
+
+with col4:
+    send_button = st.button("发送", type="primary", use_container_width=True)
+
+st.markdown('</div></div>', unsafe_allow_html=True)
+
+# ===== 处理发送 =====
+# 处理待处理问题
+if 'pending_question' in st.session_state and st.session_state.pending_question:
+    user_question = st.session_state.pending_question
+    st.session_state.pending_question = None
+    send_button = True
+
+if send_button and (user_question or uploaded_attachments) and has_api:
+    # 如果没有当前对话，创建一个
+    if not current_conv:
+        create_new_conversation()
+        current_conv = get_current_conversation()
     
-    with col_att:
-        # 合并的文件上传器（支持图片和文件）
-        uploaded_attachments = st.file_uploader(
-            "📎 上传附件（图片/文件）",
-            type=['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt'],
-            accept_multiple_files=True,
-            key="attachments_upload",
-            help="支持图片、文档等多种格式"
-        )
-    
-    with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)  # 对齐按钮
-        send_button = st.button("🚀 发送", type="primary", use_container_width=True)
-    
-    # 处理发送
-    if send_button and (user_question or uploaded_attachments) and has_api:
-        # 准备附件
-        attachments = []
-        
-        # 处理所有附件
-        if uploaded_attachments:
-            for file in uploaded_attachments:
-                # 判断是图片还是文件
-                file_ext = file.name.split('.')[-1].lower()
-                if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-                    file_type = 'image'
-                else:
-                    file_type = 'file'
-                
-                attachments.append({
-                    'type': file_type,
-                    'name': file.name,
-                    'data': file
-                })
-        
-        # 显示用户消息
-        with st.chat_message("user"):
-            if user_question:
-                st.markdown(user_question)
+    # 准备附件
+    attachments = []
+    if uploaded_attachments:
+        for file in uploaded_attachments:
+            file_ext = file.name.split('.')[-1].lower()
+            if file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                file_type = 'image'
+            else:
+                file_type = 'file'
             
-            # 显示附件
-            if attachments:
-                for att in attachments:
-                    if att['type'] == 'image':
-                        st.image(att['data'], caption=att['name'], width=300)
-                    elif att['type'] == 'file':
-                        st.info(f"📎 附件：{att['name']}")
+            attachments.append({
+                'type': file_type,
+                'name': file.name,
+                'data': file
+            })
+    
+    # 构建消息内容
+    full_content = user_question if user_question else ""
+    if attachments:
+        att_names = [att['name'] for att in attachments]
+        full_content += f"\n\n📎 附件：{', '.join(att_names)}"
+    
+    # 添加用户消息
+    current_conv['messages'].append({
+        "role": "user",
+        "content": full_content,
+        "attachments": attachments
+    })
+    
+    # 更新标题
+    if len(current_conv['messages']) == 1 and user_question:
+        auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
+        current_conv['title'] = auto_title
+    
+    # 调用 AI
+    try:
+        import openai
         
-        # 构建完整消息内容
-        full_content = user_question if user_question else ""
-        if attachments:
-            att_names = [att['name'] for att in attachments]
-            full_content += f"\n\n📎 附件：{', '.join(att_names)}"
+        # 根据模型设置
+        if "Reasoner" in selected_model:
+            model = "deepseek-reasoner"
+        elif "GPT-4" in selected_model:
+            model = "gpt-4-vision-preview"
+        elif "Claude" in selected_model:
+            model = "claude-3-opus-20240229"
+        else:
+            model = "deepseek-chat"
         
-        # 添加到当前对话
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://api.deepseek.com"
+        )
+        
+        messages = [
+            {
+                "role": "system",
+                "content": "你是 GuardNova，一个专业、友好的 AI 智能助手。"
+            }
+        ]
+        
+        # 添加对话历史
+        for msg in current_conv['messages'][-10:]:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
+        # 流式显示
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()
+            full_response = ""
+            
+            stream = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=2000,
+                stream=True
+            )
+            
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    full_response += chunk.choices[0].delta.content
+                    response_placeholder.markdown(full_response + "▌")
+            
+            response_placeholder.markdown(full_response)
+        
+        # 添加 AI 回复
         current_conv['messages'].append({
-            "role": "user",
-            "content": full_content,
-            "attachments": attachments
+            "role": "assistant",
+            "content": full_response
         })
         
-        # 自动更新对话标题（如果是第一条消息）
-        if len(current_conv['messages']) == 1 and user_question:
-            # 使用问题的前20个字符作为标题
-            auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
-            update_conversation_title(current_conv['id'], auto_title)
-        
-        # 调用 AI（流式输出）
-        with st.chat_message("assistant"):
-            try:
-                import openai
-                
-                # 配置 API
-                client = openai.OpenAI(
-                    api_key=api_key,
-                    base_url="https://api.deepseek.com"
-                )
-                
-                # 构建消息历史
-                messages = [
-                    {
-                        "role": "system",
-                        "content": """你是 GuardNova，一个专业、友好的 AI 智能助手。你的职责是：
-
-1. 回答用户的各类问题
-2. 提供专业的技术支持和建议
-3. 解释复杂概念并给出实用方案
-4. 帮助用户解决问题
-
-请用清晰、专业且友好的语气回答问题。"""
-                    }
-                ]
-                
-                # 添加对话历史（最近 10 条）
-                recent_messages = current_conv['messages'][-10:]
-                for msg in recent_messages:
-                    messages.append({
-                        "role": msg["role"],
-                        "content": msg["content"]
-                    })
-                
-                # 调用 API（流式）
-                stream = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=0.7,
-                    max_tokens=2000,
-                    stream=True
-                )
-                
-                # 流式显示回答
-                response_placeholder = st.empty()
-                full_response = ""
-                
-                for chunk in stream:
-                    if chunk.choices[0].delta.content is not None:
-                        full_response += chunk.choices[0].delta.content
-                        response_placeholder.markdown(full_response + "▌")
-                
-                # 显示最终回答
-                response_placeholder.markdown(full_response)
-                
-                # 添加到对话历史
-                current_conv['messages'].append({
-                    "role": "assistant",
-                    "content": full_response
-                })
-                
-                # 清空输入并刷新
-                st.rerun()
-                
-            except Exception as e:
-                error_msg = f"❌ AI 调用失败：{str(e)}"
-                st.error(error_msg)
-                current_conv['messages'].append({
-                    "role": "assistant",
-                    "content": error_msg
-                })
-                st.rerun()
-    
-    st.markdown("---")
-    
-    # 快捷提问示例
-    st.markdown("### 💡 试试这些问题")
-    
-    example_questions = [
-        "什么是人工智能？",
-        "如何提高工作效率？",
-        "Python 编程入门建议？",
-        "数据安全最佳实践？",
-        "项目管理的关键要素？"
-    ]
-    
-    cols = st.columns(3)
-    for i, question in enumerate(example_questions):
-        with cols[i % 3]:
-            if st.button(f"💬 {question[:12]}...", key=f"example_{i}", use_container_width=True):
-                st.session_state.pending_question = question
-                st.rerun()
-    
-    # 处理待处理问题
-    if 'pending_question' in st.session_state and st.session_state.pending_question:
-        pending_q = st.session_state.pending_question
-        st.session_state.pending_question = None
         st.rerun()
-
-# ===== Tab 2: 知识管理 =====
-with tab2:
-    st.title("📝 知识管理")
-    
-    st.markdown("""
-    ### 📚 添加知识到知识库
-    
-    您可以添加文本、文件或网站链接到知识库中，供 AI 学习和检索。
-    """)
-    
-    st.markdown("---")
-    
-    # 添加知识表单
-    st.subheader("➕ 添加新知识")
-    
-    with st.form("add_knowledge_form"):
-        # 知识类型选择
-        knowledge_type = st.selectbox(
-            "知识类型",
-            ["📝 文本内容", "📄 文件上传", "🔗 网站链接", "📊 Power BI", "⚡ Power Apps"]
-        )
         
-        # 基本信息
-        title = st.text_input("标题", placeholder="例如：技术文档")
-        tags = st.text_input("标签", placeholder="例如：技术,文档,指南（用逗号分隔）")
-        
-        # 根据类型显示不同的输入
-        content = ""
-        uploaded_file = None
-        url = ""
-        
-        if knowledge_type == "📝 文本内容":
-            content = st.text_area("内容", height=200, placeholder="输入文本内容...")
-        
-        elif knowledge_type == "📄 文件上传":
-            uploaded_file = st.file_uploader(
-                "上传文件",
-                type=['pdf', 'docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'csv', 'txt', 'msg', 'eml']
-            )
-            content = st.text_area("文件描述（可选）", height=100)
-        
-        elif knowledge_type == "🔗 网站链接":
-            url = st.text_input("网站 URL", placeholder="https://example.com")
-            content = st.text_area("链接描述（可选）", height=100)
-        
-        elif knowledge_type == "📊 Power BI":
-            url = st.text_input("Power BI 链接", placeholder="https://app.powerbi.com/...")
-            content = st.text_area("报表描述（可选）", height=100)
-        
-        elif knowledge_type == "⚡ Power Apps":
-            url = st.text_input("Power Apps 链接", placeholder="https://apps.powerapps.com/...")
-            content = st.text_area("应用描述（可选）", height=100)
-        
-        submitted = st.form_submit_button("💾 保存到知识库", type="primary")
-        
-        if submitted:
-            if not title:
-                st.error("❌ 请输入标题！")
-            elif knowledge_type == "📝 文本内容" and not content:
-                st.error("❌ 请输入内容！")
-            elif knowledge_type in ["🔗 网站链接", "📊 Power BI", "⚡ Power Apps"] and not url:
-                st.error("❌ 请输入链接！")
-            elif knowledge_type == "📄 文件上传" and not uploaded_file:
-                st.error("❌ 请上传文件！")
-            else:
-                # 保存知识条目
-                item = {
-                    "id": len(st.session_state.knowledge_items) + 1,
-                    "type": knowledge_type,
-                    "title": title,
-                    "content": content,
-                    "tags": tags,
-                    "url": url,
-                    "file_name": uploaded_file.name if uploaded_file else "",
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                st.session_state.knowledge_items.append(item)
-                st.success(f"✅ 已添加知识条目：{title}")
-                st.rerun()
-    
-    st.markdown("---")
-    
-    # 显示已有知识
-    st.subheader("📖 已有知识")
-    
-    if len(st.session_state.knowledge_items) == 0:
-        st.info("💡 暂无知识条目，请添加一些内容到知识库。")
-    else:
-        st.markdown(f"**总计**：{len(st.session_state.knowledge_items)} 条知识")
-        
-        # 显示知识列表
-        for item in reversed(st.session_state.knowledge_items):
-            with st.expander(f"{item['type']} {item['title']}", expanded=False):
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.markdown(f"**ID**：{item['id']}")
-                    st.markdown(f"**类型**：{item['type']}")
-                    st.markdown(f"**标签**：{item['tags']}")
-                    st.markdown(f"**创建时间**：{item['created_at']}")
-                    
-                    if item['content']:
-                        st.markdown("**内容**：")
-                        st.text(item['content'][:200] + "..." if len(item['content']) > 200 else item['content'])
-                    
-                    if item['url']:
-                        st.markdown(f"**链接**：[{item['url']}]({item['url']})")
-                    
-                    if item['file_name']:
-                        st.markdown(f"**文件**：{item['file_name']}")
-                
-                with col2:
-                    # 删除按钮
-                    if st.button("🗑️ 删除", key=f"delete_{item['id']}", use_container_width=True):
-                        st.session_state.knowledge_items = [
-                            i for i in st.session_state.knowledge_items if i['id'] != item['id']
-                        ]
-                        st.success(f"✅ 已删除：{item['title']}")
-                        st.rerun()
+    except Exception as e:
+        st.error(f"❌ AI 调用失败：{str(e)}")
+        current_conv['messages'].append({
+            "role": "assistant",
+            "content": f"抱歉，出现了错误：{str(e)}"
+        })
+        st.rerun()
