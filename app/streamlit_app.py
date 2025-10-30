@@ -470,6 +470,47 @@ if 'kb' not in st.session_state:
         st.session_state.kb = None
 
 # ===== 辅助函数 =====
+def render_message_with_code(content: str):
+    """渲染消息内容，支持代码块格式化"""
+    import re
+    
+    # 查找代码块 (```language ... ```)
+    code_block_pattern = r'```(\w+)?\n(.*?)```'
+    
+    parts = []
+    last_end = 0
+    
+    for match in re.finditer(code_block_pattern, content, re.DOTALL):
+        # 添加代码块之前的文本
+        if match.start() > last_end:
+            text_before = content[last_end:match.start()].strip()
+            if text_before:
+                parts.append(('text', text_before))
+        
+        # 添加代码块
+        language = match.group(1) or 'python'
+        code = match.group(2).strip()
+        parts.append(('code', language, code))
+        
+        last_end = match.end()
+    
+    # 添加最后的文本
+    if last_end < len(content):
+        text_after = content[last_end:].strip()
+        if text_after:
+            parts.append(('text', text_after))
+    
+    # 如果没有找到代码块，直接显示全部内容
+    if not parts:
+        st.markdown(content)
+    else:
+        # 分别渲染文本和代码
+        for part in parts:
+            if part[0] == 'text':
+                st.markdown(part[1])
+            elif part[0] == 'code':
+                st.code(part[2], language=part[1])
+
 def get_current_conversation():
     """获取当前对话"""
     if not st.session_state.current_conversation_id:
@@ -828,11 +869,13 @@ if not st.session_state.show_knowledge_manager:
         # 显示对话
         st.markdown(f'<div class="top-bar"><div class="top-bar-title">{current_conv["title"]}</div></div>', unsafe_allow_html=True)
         
-        # 显示历史消息（直接显示，不使用自定义容器）
+        # 显示历史消息（支持代码格式化）
         if current_conv['messages']:
             for message in current_conv['messages']:
                 with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+                    # 使用代码渲染函数
+                    render_message_with_code(message["content"])
+                    
                     # 显示附件
                     if 'attachments' in message and message['attachments']:
                         for att in message['attachments']:
@@ -911,6 +954,9 @@ if not st.session_state.show_knowledge_manager:
         api_key = ""
     
     if send_button and user_question and user_question.strip() and has_api:
+        # 保存问题并清空输入框
+        question_to_send = user_question.strip()
+        
         # 设置生成状态
         st.session_state.is_generating = True
         
@@ -922,12 +968,12 @@ if not st.session_state.show_knowledge_manager:
         # 添加用户消息
         current_conv['messages'].append({
             "role": "user",
-            "content": user_question.strip()
+            "content": question_to_send
         })
         
         # 更新标题
         if len(current_conv['messages']) == 1:
-            auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
+            auto_title = question_to_send[:20] + ("..." if len(question_to_send) > 20 else "")
             current_conv['title'] = auto_title
         
         # 调用 AI (集成 RAG 知识库)
@@ -948,7 +994,7 @@ if not st.session_state.show_knowledge_manager:
             
             # === RAG 集成：先搜索知识库 ===
             kb = st.session_state.kb
-            search_results = kb.search_knowledge(user_question.strip(), limit=3) if kb else []
+            search_results = kb.search_knowledge(question_to_send, limit=3) if kb else []
             
             # 构建系统提示词
             if search_results:
@@ -1005,14 +1051,44 @@ if not st.session_state.show_knowledge_manager:
                     if not st.session_state.is_generating:
                         break
                 
-                # 添加知识来源标注
-                if search_results:
-                    sources = "\n\n---\n📚 **参考知识:**\n" + "\n".join([
-                        f"- {item['title']} ({item['content_type']})" for item in search_results
-                    ])
-                    full_response += sources
+                # 显示回答（支持代码格式化）
+                response_placeholder.empty()
                 
-                response_placeholder.markdown(full_response)
+                # 使用自定义渲染函数显示回答
+                with response_placeholder.container():
+                    render_message_with_code(full_response)
+                    
+                    # 添加知识来源标注（带下载链接）
+                    if search_results:
+                        st.markdown("---")
+                        st.markdown("📚 **参考知识:**")
+                        
+                        for item in search_results:
+                            col_info, col_download = st.columns([4, 1])
+                            
+                            with col_info:
+                                type_icon = {'text': '📝', 'file': '📄', 'url': '🔗'}.get(item['content_type'], '📄')
+                                st.markdown(f"{type_icon} **{item['title']}** ({item['content_type']})")
+                            
+                            with col_download:
+                                # 如果是文件类型，提供下载按钮
+                                if item['content_type'] == 'file' and item.get('file_path'):
+                                    try:
+                                        file_path = Path(item['file_path'])
+                                        if file_path.exists():
+                                            with open(file_path, 'rb') as f:
+                                                st.download_button(
+                                                    "📥",
+                                                    data=f.read(),
+                                                    file_name=file_path.name,
+                                                    key=f"dl_stream_{item['id']}",
+                                                    help="下载文件"
+                                                )
+                                    except:
+                                        pass
+                                # 如果是链接类型，显示访问按钮
+                                elif item['content_type'] == 'url' and item.get('external_url'):
+                                    st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
             
             # 添加 AI 回复
             current_conv['messages'].append({"role": "assistant", "content": full_response})
