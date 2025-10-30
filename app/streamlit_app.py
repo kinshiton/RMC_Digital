@@ -61,6 +61,33 @@ section[data-testid="stSidebar"] [data-testid="stExpander"] {
     border: none !important;
 }
 
+/* 展开框内的元素字体改为黑色 */
+section[data-testid="stSidebar"] .streamlit-expanderContent * {
+    color: #000000 !important;
+}
+
+/* 展开框内的按钮文字也是黑色 */
+section[data-testid="stSidebar"] .streamlit-expanderContent button {
+    color: #000000 !important;
+}
+
+/* 展开框内的输入框文字黑色 */
+section[data-testid="stSidebar"] .streamlit-expanderContent input {
+    color: #000000 !important;
+}
+
+/* 展开框内的标签文字黑色 */
+section[data-testid="stSidebar"] .streamlit-expanderContent label {
+    color: #000000 !important;
+}
+
+/* 展开框内的普通文本黑色 */
+section[data-testid="stSidebar"] .streamlit-expanderContent p,
+section[data-testid="stSidebar"] .streamlit-expanderContent span,
+section[data-testid="stSidebar"] .streamlit-expanderContent div {
+    color: #000000 !important;
+}
+
 /* 聊天消息样式 */
 .stChatMessage {
     background-color: #f8f9fa;
