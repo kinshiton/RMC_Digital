@@ -630,166 +630,68 @@ with st.sidebar:
                 st.caption(f"创建于：{created_at.strftime('%m-%d %H:%M')}")
                 st.caption(f"消息数：{len(conv['messages'])}")
 
-# ===== 知识库管理面板 (RAG 系统) =====
+# ===== 知识库管理面板 =====
 if st.session_state.show_knowledge_manager:
     with st.container():
-        # 顶部操作栏
-        col_title, col_back = st.columns([5, 1])
-        with col_title:
-            st.markdown("## 📚 知识库管理 (RAG)")
-        with col_back:
-            if st.button("← 返回对话", use_container_width=True):
-                st.session_state.show_knowledge_manager = False
-                st.rerun()
-        
+        st.markdown("## 📚 知识库管理")
         st.markdown("---")
         
         # 添加知识
         with st.expander("➕ 添加新知识", expanded=True):
-            knowledge_type = st.radio(
-                "知识类型",
-                ["📝 文本", "📄 文件", "🔗 网页链接 (RAG)"],
-                horizontal=True
-            )
-            
-            title = st.text_input("标题", placeholder="输入知识标题...")
-            
-            # 根据类型显示不同的输入
-            uploaded_file = None
-            url = None
-            content = ""
-            description = ""
-            
-            if knowledge_type == "📝 文本":
-                content = st.text_area("内容", height=150, placeholder="输入文本内容...")
-            elif knowledge_type == "📄 文件":
-                uploaded_file = st.file_uploader(
-                    "选择文件",
-                    type=['pdf', 'docx', 'txt', 'md', 'csv', 'xlsx'],
-                    help="支持 PDF、Word、文本文件等"
+            with st.form("add_knowledge"):
+                knowledge_type = st.selectbox(
+                    "知识类型",
+                    ["📝 文本", "📄 文件", "🔗 链接"]
                 )
-                description = st.text_area("文件描述（可选）", height=80)
-            else:  # 网页链接
-                url = st.text_input("URL", placeholder="https://example.com/article")
-                st.info("💡 RAG 功能：系统将自动抓取网页内容，并支持定时更新")
-                description = st.text_area("链接描述（可选）", height=80)
-            
-            tags = st.text_input("标签", placeholder="用逗号分隔，例如：技术,教程,指南")
-            
-            col_submit, col_cancel = st.columns(2)
-            
-            with col_submit:
-                if st.button("💾 保存到数据库", type="primary", use_container_width=True):
-                    if not title:
-                        st.error("❌ 请输入标题")
-                    elif knowledge_type == "📝 文本" and not content:
-                        st.error("❌ 请输入内容")
-                    elif knowledge_type == "📄 文件" and not uploaded_file:
-                        st.error("❌ 请上传文件")
-                    elif knowledge_type == "🔗 网页链接 (RAG)" and not url:
-                        st.error("❌ 请输入 URL")
-                    else:
-                        try:
-                            kb = st.session_state.kb
-                            
-                            if knowledge_type == "📝 文本":
-                                kb.add_text_knowledge(title, content, tags)
-                                st.success(f"✅ 已保存文本知识：{title}")
-                            
-                            elif knowledge_type == "📄 文件":
-                                # 保存文件
-                                file_dir = Path("data/uploaded_files")
-                                file_dir.mkdir(parents=True, exist_ok=True)
-                                file_path = file_dir / uploaded_file.name
-                                
-                                with open(file_path, "wb") as f:
-                                    f.write(uploaded_file.getbuffer())
-                                
-                                kb.add_file_knowledge(title, str(file_path), description, tags)
-                                st.success(f"✅ 已保存文件知识：{title}")
-                            
-                            else:  # 网页链接
-                                with st.spinner("🔍 正在抓取网页内容..."):
-                                    kb.add_url_knowledge(title, url, description, tags)
-                                st.success(f"✅ 已保存链接知识（RAG）：{title}")
-                            
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ 保存失败：{str(e)}")
-            
-            with col_cancel:
-                if st.button("取消", use_container_width=True):
-                    st.rerun()
-        
-        st.markdown("---")
+                
+                title = st.text_input("标题", placeholder="输入知识标题...")
+                
+                if knowledge_type == "📝 文本":
+                    content = st.text_area("内容", height=150)
+                elif knowledge_type == "📄 文件":
+                    uploaded_file = st.file_uploader("上传文件", type=['pdf', 'docx', 'txt'])
+                    content = st.text_area("描述", height=100)
+                else:
+                    url = st.text_input("URL", placeholder="https://...")
+                    content = st.text_area("描述", height=100)
+                
+                tags = st.text_input("标签", placeholder="用逗号分隔...")
+                
+                if st.form_submit_button("💾 保存", type="primary", use_container_width=True):
+                    if title:
+                        item = {
+                            'id': len(st.session_state.knowledge_items) + 1,
+                            'type': knowledge_type,
+                            'title': title,
+                            'content': content if knowledge_type != "🔗 链接" else url,
+                            'tags': tags,
+                            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        }
+                        st.session_state.knowledge_items.append(item)
+                        st.success(f"✅ 已添加：{title}")
+                        st.rerun()
         
         # 显示知识列表
         st.markdown("### 📖 已有知识")
         
-        try:
-            kb = st.session_state.kb
-            all_knowledge = kb.get_all_knowledge()
+        if not st.session_state.knowledge_items:
+            st.info("暂无知识条目")
+        else:
+            st.caption(f"共 {len(st.session_state.knowledge_items)} 条")
             
-            if not all_knowledge:
-                st.info("暂无知识条目，点击上方添加您的第一条知识")
-            else:
-                st.caption(f"共 {len(all_knowledge)} 条知识")
-                
-                # 搜索框
-                search_query = st.text_input("🔍 搜索知识", placeholder="输入关键词搜索...")
-                
-                if search_query:
-                    all_knowledge = kb.search_knowledge(search_query, limit=20)
-                    st.caption(f"找到 {len(all_knowledge)} 条相关知识")
-                
-                # 显示知识
-                for item in all_knowledge:
-                    type_icon = {
-                        'text': '📝',
-                        'file': '📄',
-                        'url': '🔗'
-                    }.get(item['content_type'], '📄')
+            for item in reversed(st.session_state.knowledge_items):
+                with st.expander(f"{item['type']} {item['title']}"):
+                    st.caption(f"ID: {item['id']} | 创建于: {item['created_at']}")
+                    st.caption(f"标签: {item['tags']}")
+                    st.text(item['content'][:200] + "..." if len(str(item['content'])) > 200 else item['content'])
                     
-                    with st.expander(f"{type_icon} {item['title']}", expanded=False):
-                        col_info, col_actions = st.columns([3, 1])
-                        
-                        with col_info:
-                            st.caption(f"**ID:** {item['id']} | **类型:** {item['content_type']}")
-                            st.caption(f"**创建时间:** {item['created_at']}")
-                            if item['tags']:
-                                st.caption(f"**标签:** {item['tags']}")
-                            
-                            # 显示内容预览
-                            content_preview = item['content'][:300] + "..." if len(item['content']) > 300 else item['content']
-                            st.text_area("内容预览", content_preview, height=100, disabled=True)
-                            
-                            # 显示额外信息
-                            if item['external_url']:
-                                st.info(f"🔗 链接: {item['external_url']}")
-                            if item['file_path']:
-                                st.info(f"📎 文件: {item['file_path']}")
-                        
-                        with col_actions:
-                            # 刷新链接内容
-                            if item['content_type'] == 'url':
-                                if st.button("🔄 刷新", key=f"refresh_{item['id']}", use_container_width=True):
-                                    with st.spinner("更新中..."):
-                                        if kb.refresh_url_knowledge(item['id']):
-                                            st.success("✅ 已更新")
-                                            st.rerun()
-                                        else:
-                                            st.error("❌ 更新失败")
-                            
-                            # 删除按钮
-                            if st.button("🗑️ 删除", key=f"del_{item['id']}", use_container_width=True):
-                                if kb.delete_knowledge(item['id']):
-                                    st.success("✅ 已删除")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ 删除失败")
+                    if st.button("🗑️ 删除", key=f"del_k_{item['id']}"):
+                        st.session_state.knowledge_items = [k for k in st.session_state.knowledge_items if k['id'] != item['id']]
+                        st.rerun()
         
-        except Exception as e:
-            st.error(f"❌ 加载知识库失败：{str(e)}")
+        if st.button("✖️ 关闭知识库", use_container_width=True):
+            st.session_state.show_knowledge_manager = False
+            st.rerun()
 
 # ===== 主内容区域 =====
 if not st.session_state.show_knowledge_manager:
@@ -934,7 +836,7 @@ if not st.session_state.show_knowledge_manager:
             auto_title = user_question[:20] + ("..." if len(user_question) > 20 else "")
             current_conv['title'] = auto_title
         
-        # 调用 AI (集成 RAG 知识库)
+        # 调用 AI
         try:
             import openai
             
@@ -950,38 +852,8 @@ if not st.session_state.show_knowledge_manager:
             
             client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
             
-            # === RAG 集成：先搜索知识库 ===
-            kb = st.session_state.kb
-            search_results = kb.search_knowledge(user_question.strip(), limit=3) if kb else []
-            
-            # 构建系统提示词
-            if search_results:
-                # 有知识库结果，使用 RAG 模式
-                context = "\n\n".join([
-                    f"【知识 {i+1}】{item['title']}\n{item['content'][:500]}"
-                    for i, item in enumerate(search_results)
-                ])
-                
-                system_prompt = f"""你是 GuardNova AI 智能助手。
-
-📚 **知识库检索结果** (RAG):
-
-{context}
-
-**回答指南:**
-1. 优先基于知识库内容回答问题
-2. 如果知识库内容足够，直接引用并整理
-3. 如果知识库内容不足，结合你的通用知识补充
-4. 在回答末尾注明信息来源（知识库/通用知识）
-
-请用专业、友好的语气回答用户问题。"""
-            else:
-                # 没有知识库结果，使用通用模式
-                system_prompt = "你是 GuardNova，一个专业、友好的 AI 智能助手。"
-            
-            # 构建消息列表
             messages = [
-                {"role": "system", "content": system_prompt}
+                {"role": "system", "content": "你是 GuardNova，一个专业、友好的 AI 智能助手。"}
             ]
             
             for msg in current_conv['messages'][-10:]:
@@ -1008,13 +880,6 @@ if not st.session_state.show_knowledge_manager:
                     # 检查是否停止
                     if not st.session_state.is_generating:
                         break
-                
-                # 添加知识来源标注
-                if search_results:
-                    sources = "\n\n---\n📚 **参考知识:**\n" + "\n".join([
-                        f"- {item['title']} ({item['content_type']})" for item in search_results
-                    ])
-                    full_response += sources
                 
                 response_placeholder.markdown(full_response)
             
