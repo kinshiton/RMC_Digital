@@ -828,22 +828,18 @@ if not st.session_state.show_knowledge_manager:
         # 显示对话
         st.markdown(f'<div class="top-bar"><div class="top-bar-title">{current_conv["title"]}</div></div>', unsafe_allow_html=True)
         
-        # 对话容器
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        
-        # 显示历史消息
-        for message in current_conv['messages']:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-                # 显示附件
-                if 'attachments' in message and message['attachments']:
-                    for att in message['attachments']:
-                        if att['type'] == 'image':
-                            st.image(att['data'], caption=att['name'], width=400)
-                        elif att['type'] == 'file':
-                            st.info(f"📎 {att['name']}")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 显示历史消息（直接显示，不使用自定义容器）
+        if current_conv['messages']:
+            for message in current_conv['messages']:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+                    # 显示附件
+                    if 'attachments' in message and message['attachments']:
+                        for att in message['attachments']:
+                            if att['type'] == 'image':
+                                st.image(att['data'], caption=att['name'], width=400)
+                            elif att['type'] == 'file':
+                                st.info(f"📎 {att['name']}")
     
     # ===== 底部输入区域 - 优化版 =====
     st.markdown('<div class="input-wrapper"><div class="input-inner">', unsafe_allow_html=True)
