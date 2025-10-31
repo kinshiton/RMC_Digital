@@ -9,11 +9,20 @@ from datetime import datetime, timedelta
 import json
 from pathlib import Path
 import sys
+from typing import Optional
+import importlib
+import uuid
 
 # 添加模块路径
 sys.path.append(str(Path(__file__).parent.parent))
 from modules.knowledge_base import KnowledgeBase
 from modules.conversation_manager import ConversationManager
+
+# 尝试在顶层导入 openai 以满足静态检查器；运行时若不存在则延迟加载并给出友好提示
+try:
+    import openai  # type: ignore
+except Exception:
+    openai = None  # type: ignore
 
 # 页面配置
 st.set_page_config(
@@ -670,7 +679,7 @@ with st.sidebar:
                             st.rerun()
                 
                 with col2:
-                    if st.button("删除", key=f"del_{conv['id']}", use_container_width=True):
+                    if st.button("删除", key=f"conv_del_{conv['id']}", use_container_width=True):
                         delete_conversation(conv['id'])
                 
                 # 导出按钮
@@ -764,14 +773,16 @@ if st.session_state.show_knowledge_manager:
                                 st.success(f"✅ 已保存文本知识：{title}")
                             
                             elif knowledge_type == "📄 文件":
-                                # 保存文件
+                                # 保存文件（避免覆盖，生成唯一文件名）
                                 file_dir = Path("data/uploaded_files")
                                 file_dir.mkdir(parents=True, exist_ok=True)
-                                file_path = file_dir / uploaded_file.name
-                                
+                                original_name = Path(uploaded_file.name).name
+                                unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{original_name}"
+                                file_path = file_dir / unique_name
+
                                 with open(file_path, "wb") as f:
                                     f.write(uploaded_file.getbuffer())
-                                
+
                                 kb.add_file_knowledge(title, str(file_path), description, tags)
                                 st.success(f"✅ 已保存文件知识：{title}")
                             
@@ -817,7 +828,7 @@ if st.session_state.show_knowledge_manager:
                         'url': '🔗'
                     }.get(item['content_type'], '📄')
                     
-                    with st.expander(f"{type_icon} {item['title']}", expanded=False):
+                    with st.expander(f"{type_icon} {item['title']}", expanded=False, key=f"kb_item_{item['id']}"):
                         col_info, col_actions = st.columns([3, 1])
                         
                         with col_info:
@@ -828,7 +839,7 @@ if st.session_state.show_knowledge_manager:
                             
                             # 显示内容预览
                             content_preview = item['content'][:300] + "..." if len(item['content']) > 300 else item['content']
-                            st.text_area("内容预览", content_preview, height=100, disabled=True)
+                            st.text_area("内容预览", content_preview, height=100, disabled=True, key=f"kb_preview_{item['id']}")
                             
                             # 显示额外信息
                             if item['external_url']:
@@ -847,8 +858,8 @@ if st.session_state.show_knowledge_manager:
                                         else:
                                             st.error("❌ 更新失败")
                             
-                            # 删除按钮
-                            if st.button("🗑️ 删除", key=f"del_{item['id']}", use_container_width=True):
+                            # 删除按钮（加前缀防止与侧边栏对话删除按钮冲突）
+                            if st.button("🗑️ 删除", key=f"kb_del_{item['id']}", use_container_width=True):
                                 if kb.delete_knowledge(item['id']):
                                     st.success("✅ 已删除")
                                     st.rerun()
@@ -861,8 +872,12 @@ if st.session_state.show_knowledge_manager:
 # ===== 主内容区域 =====
 if not st.session_state.show_knowledge_manager:
     current_conv = get_current_conversation()
+    # 首次进入时若没有对话，自动创建一个，避免发送后看不到对话
+    if not current_conv and st.session_state.conv_manager:
+        create_new_conversation()
+        current_conv = get_current_conversation()
     
-    # 如果没有对话，显示欢迎界面
+    # 如果依然没有对话（例如对话管理器不可用），显示欢迎界面
     if not current_conv:
         st.markdown("""
         <div class="welcome-screen">
@@ -898,9 +913,10 @@ if not st.session_state.show_knowledge_manager:
         # 显示历史消息（支持代码格式化 + 加入知识库）
         if current_conv['messages']:
             for idx, message in enumerate(current_conv['messages']):
-                with st.chat_message(message["role"]):
-                    # 使用代码渲染函数
-                    render_message_with_code(message["content"])
+                try:
+                    with st.chat_message(message["role"]):
+                        # 使用代码渲染函数
+                        render_message_with_code(message["content"])
                     
                     # AI 回答添加"加入知识库"按钮
                     if message["role"] == "assistant" and idx > 0:
@@ -931,19 +947,28 @@ if not st.session_state.show_knowledge_manager:
                                 )
                                 
                                 if st.button("💾 保存到知识库", key=f"save_kb_{message.get('id', idx)}"):
-                                    if add_qa_to_knowledge(edited_question, edited_answer, tags):
-                                        st.success("✅ 已添加到知识库！")
-                                        st.balloons()
-                                    else:
-                                        st.error("❌ 添加失败")
+                                    try:
+                                        kb_ok = add_qa_to_knowledge(edited_question, edited_answer, tags)
+                                        if kb_ok:
+                                            st.success("✅ 已添加到知识库！")
+                                            st.balloons()
+                                        else:
+                                            st.error("❌ 添加失败，请稍后重试")
+                                    except Exception as e:
+                                        st.error(f"❌ 添加失败：{e}")
                     
                     # 显示附件
                     if 'attachments' in message and message['attachments']:
                         for att in message['attachments']:
-                            if att['type'] == 'image':
-                                st.image(att['data'], caption=att['name'], width=400)
-                            elif att['type'] == 'file':
-                                st.info(f"📎 {att['name']}")
+                            try:
+                                if att['type'] == 'image':
+                                    st.image(att['data'], caption=att.get('name',''), width=400)
+                                elif att['type'] == 'file':
+                                    st.info(f"📎 {att.get('name','文件')}")
+                            except Exception:
+                                pass
+                except Exception as render_err:
+                    st.warning(f"⚠️ 某条消息渲染失败：{render_err}")
     
     # ===== 底部输入区域 - 优化版 =====
     st.markdown('<div class="input-wrapper"><div class="input-inner">', unsafe_allow_html=True)
@@ -952,24 +977,35 @@ if not st.session_state.show_knowledge_manager:
     if 'is_generating' not in st.session_state:
         st.session_state.is_generating = False
     
-    # 模型选择（紧凑版）
-    col_model, col_spacer = st.columns([2, 4])
+    # 初始化模型选择
+    if 'selected_model' not in st.session_state:
+        st.session_state.selected_model = "DeepSeek Chat"
     
+    # 模型选择（紧凑版，放在 form 外面）
+    col_model, col_spacer = st.columns([2, 4])
     with col_model:
         selected_model = st.selectbox(
             "模型",
             ["DeepSeek Chat", "DeepSeek Reasoner", "GPT-4 Vision", "Claude 3"],
-            index=0,
-            label_visibility="collapsed"
+            index=["DeepSeek Chat", "DeepSeek Reasoner", "GPT-4 Vision", "Claude 3"].index(st.session_state.selected_model),
+            label_visibility="collapsed",
+            key="model_selector"
         )
+        st.session_state.selected_model = selected_model
     
     # 输入框和发送按钮（分两列布局）
     col_input, col_send = st.columns([20, 1])
     
     with col_input:
-        # 文本输入
+        # 检查是否有待发送的快捷问题
+        default_value = ""
+        if 'pending_question' in st.session_state and st.session_state.pending_question:
+            default_value = st.session_state.pending_question
+            st.session_state.pending_question = None
+        
         user_question = st.text_area(
             "消息",
+            value=default_value,
             height=52,
             placeholder="给 GuardNova 发送消息...",
             key="user_input",
@@ -985,12 +1021,12 @@ if not st.session_state.show_knowledge_manager:
             send_button = False
         else:
             # 发送按钮
-            send_button = st.button("↑", type="primary", key="send_btn", help="发送 (Ctrl+Enter)", 
+            send_button = st.button("↑", type="primary", key="send_btn", help="发送", 
                                    disabled=not user_question or not user_question.strip())
             stop_button = False
     
     # 提示信息
-    st.caption("💡 Ctrl+Enter 发送消息 | Shift+Enter 换行")
+    st.caption("💡 输入消息后点击发送按钮 | Shift+Enter 换行")
     
     st.markdown('</div></div>', unsafe_allow_html=True)
     
@@ -998,13 +1034,6 @@ if not st.session_state.show_knowledge_manager:
     if stop_button:
         st.session_state.is_generating = False
         st.rerun()
-    
-    # ===== 处理发送 =====
-    # 处理待处理问题
-    if 'pending_question' in st.session_state and st.session_state.pending_question:
-        user_question = st.session_state.pending_question
-        st.session_state.pending_question = None
-        send_button = True
     
     # 检查 API
     try:
@@ -1015,7 +1044,7 @@ if not st.session_state.show_knowledge_manager:
         api_key = ""
     
     if send_button and user_question and user_question.strip() and has_api:
-        # 保存问题并清空输入框
+        # 保存问题
         question_to_send = user_question.strip()
         
         # 设置生成状态
@@ -1040,7 +1069,8 @@ if not st.session_state.show_knowledge_manager:
             
             # 调用 AI (集成 RAG 知识库)
             try:
-                import openai
+                # 若未成功导入，尝试动态加载（使用局部变量，避免重写全局名）
+                openai_module = openai if openai is not None else importlib.import_module("openai")  # type: ignore
                 
                 # 设置模型
                 if "Reasoner" in selected_model:
@@ -1052,7 +1082,7 @@ if not st.session_state.show_knowledge_manager:
                 else:
                     model = "deepseek-chat"
                 
-                client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+                client = openai_module.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
                 
                 # === RAG 集成：先搜索知识库 ===
                 kb = st.session_state.kb
@@ -1155,8 +1185,9 @@ if not st.session_state.show_knowledge_manager:
                 # 保存 AI 回复到数据库
                 cm.add_message(current_conv['id'], "assistant", full_response)
                 
-                # 重置生成状态
+                # 重置生成状态并清空输入框
                 st.session_state.is_generating = False
+                st.session_state["user_input"] = ""
                 st.rerun()
                 
             except Exception as e:
@@ -1167,9 +1198,32 @@ if not st.session_state.show_knowledge_manager:
                 if cm and current_conv:
                     cm.add_message(current_conv['id'], "assistant", error_msg)
                 
+                # 清空输入框
+                st.session_state["user_input"] = ""
                 st.error(f"❌ {str(e)}")
                 st.rerun()
         else:
             # 对话管理器未初始化
             st.session_state.is_generating = False
+            st.session_state["user_input"] = ""
             st.error("❌ 对话管理器未初始化，请刷新页面重试")
+    elif send_button and user_question and user_question.strip() and not has_api:
+        # 无 API Key 时也要保存用户问题，并给出清晰提示，让对话区可见
+        cm = st.session_state.conv_manager
+        if cm:
+            current_conv = get_current_conversation()
+            if not current_conv:
+                create_new_conversation()
+                current_conv = get_current_conversation()
+            if current_conv:
+                cm.add_message(current_conv['id'], "user", user_question.strip())
+                cm.add_message(
+                    current_conv['id'],
+                    "assistant",
+                    "⚠️ 未检测到可用的 API Key。请在 Streamlit Secrets 中设置 `DEEPSEEK_API_KEY` 后再试。"
+                )
+        # 清空输入框
+        st.session_state["user_input"] = ""
+        st.session_state.is_generating = False
+        st.warning("未配置 API Key：请在 Secrets 中添加 DEEPSEEK_API_KEY")
+        st.rerun()

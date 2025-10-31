@@ -606,7 +606,7 @@ with st.sidebar:
                             st.rerun()
                 
                 with col2:
-                    if st.button("删除", key=f"del_{conv['id']}", use_container_width=True):
+                    if st.button("删除", key=f"conv_del_{conv['id']}", use_container_width=True):
                         delete_conversation(conv['id'])
                 
                 # 导出按钮
@@ -685,7 +685,7 @@ if st.session_state.show_knowledge_manager:
                     st.caption(f"标签: {item['tags']}")
                     st.text(item['content'][:200] + "..." if len(str(item['content'])) > 200 else item['content'])
                     
-                    if st.button("🗑️ 删除", key=f"del_k_{item['id']}"):
+                    if st.button("🗑️ 删除", key=f"kb_del_{item['id']}"):
                         st.session_state.knowledge_items = [k for k in st.session_state.knowledge_items if k['id'] != item['id']]
                         st.rerun()
         

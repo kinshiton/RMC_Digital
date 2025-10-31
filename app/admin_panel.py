@@ -9,6 +9,7 @@ import requests
 from datetime import datetime
 import sqlite3
 from pathlib import Path
+import uuid
 from ios_style import apply_ios_style, ios_card, ios_badge, ios_divider, IOS_ICONS, IOS_COLORS
 
 # 页面配置
@@ -235,13 +236,15 @@ if "知识库管理" in page:
                 content_type_value = "file"
                 
                 if uploaded_file:
-                    # 保存文件
+                    # 保存文件（添加唯一前缀，防止覆盖旧文件）
                     save_dir = Path("data/knowledge/files")
                     save_dir.mkdir(parents=True, exist_ok=True)
-                    file_path = save_dir / uploaded_file.name
+                    original_name = Path(uploaded_file.name).name
+                    unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{original_name}"
+                    file_path = save_dir / unique_name
                     with open(file_path, 'wb') as f:
                         f.write(uploaded_file.getbuffer())
-                    st.success(f"✅ 文件已上传: {uploaded_file.name}")
+                    st.success(f"✅ 文件已上传: {original_name}")
             
             elif content_type == "🔗 外部链接":
                 external_url = st.text_input(
@@ -361,7 +364,7 @@ if "知识库管理" in page:
                                 with open(file_path, 'rb') as f:
                                     st.download_button(
                                         f"⬇️ 下载 {file_path.name}",
-                                        f,
+                                        data=f.read(),
                                         file_name=file_path.name,
                                         mime="application/octet-stream",
                                         key=f"download_{row['id']}"
@@ -388,7 +391,7 @@ if "知识库管理" in page:
                         st.caption(f"创建时间：{row['created_at']}")
                     
                     with col2:
-                        if st.button("🗑️ 删除", key=f"del_{row['id']}"):
+                        if st.button("🗑️ 删除", key=f"kb_admin_del_{row['id']}"):
                             conn = get_db_connection()
                             cursor = conn.cursor()
                             cursor.execute("DELETE FROM knowledge_items WHERE id = ?", (row['id'],))
