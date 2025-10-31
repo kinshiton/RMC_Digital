@@ -821,14 +821,14 @@ if st.session_state.show_knowledge_manager:
                     st.caption(f"找到 {len(all_knowledge)} 条相关知识")
                 
                 # 显示知识
-                for item in all_knowledge:
+                for idx, item in enumerate(all_knowledge):
                     type_icon = {
                         'text': '📝',
                         'file': '📄',
                         'url': '🔗'
                     }.get(item['content_type'], '📄')
                     
-                    with st.expander(f"{type_icon} {item['title']}", expanded=False, key=f"kb_item_{item['id']}"):
+                    with st.expander(f"{type_icon} {item['title']}", expanded=False):
                         col_info, col_actions = st.columns([3, 1])
                         
                         with col_info:
@@ -839,7 +839,7 @@ if st.session_state.show_knowledge_manager:
                             
                             # 显示内容预览
                             content_preview = item['content'][:300] + "..." if len(item['content']) > 300 else item['content']
-                            st.text_area("内容预览", content_preview, height=100, disabled=True, key=f"kb_preview_{item['id']}")
+                            st.text_area("内容预览", content_preview, height=100, disabled=True, key=f"kb_preview_{idx}_{item['id']}")
                             
                             # 显示额外信息
                             if item['external_url']:
@@ -850,7 +850,7 @@ if st.session_state.show_knowledge_manager:
                         with col_actions:
                             # 刷新链接内容
                             if item['content_type'] == 'url':
-                                if st.button("🔄 刷新", key=f"refresh_{item['id']}", use_container_width=True):
+                                if st.button("🔄 刷新", key=f"kb_refresh_{idx}_{item['id']}", use_container_width=True):
                                     with st.spinner("更新中..."):
                                         if kb.refresh_url_knowledge(item['id']):
                                             st.success("✅ 已更新")
@@ -859,7 +859,7 @@ if st.session_state.show_knowledge_manager:
                                             st.error("❌ 更新失败")
                             
                             # 删除按钮（加前缀防止与侧边栏对话删除按钮冲突）
-                            if st.button("🗑️ 删除", key=f"kb_del_{item['id']}", use_container_width=True):
+                            if st.button("🗑️ 删除", key=f"kb_del_{idx}_{item['id']}", use_container_width=True):
                                 if kb.delete_knowledge(item['id']):
                                     st.success("✅ 已删除")
                                     st.rerun()
