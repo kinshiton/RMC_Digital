@@ -1519,82 +1519,58 @@ if not st.session_state.show_knowledge_manager:
         st.rerun()
 
 # ===== 侧边栏切换功能注入 =====
-# 在页面底部注入侧边栏切换的 JavaScript
-st.markdown("""
-<div id="sidebar-toggle-injector" style="display:none;"></div>
+# 使用 HTML component 注入 JavaScript (不会显示在页面上)
+import streamlit.components.v1 as components
+
+components.html("""
 <script>
 (function() {
-    // 侧边栏切换功能
     function toggleSidebar() {
         const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
         if (sidebar) {
             sidebar.classList.toggle('sidebar-collapsed');
-            
-            // 更新按钮图标
             const btn = parent.document.querySelector('.sidebar-toggle-btn');
             if (btn) {
-                if (sidebar.classList.contains('sidebar-collapsed')) {
-                    btn.innerHTML = '☰';  // 隐藏时显示菜单图标
-                } else {
-                    btn.innerHTML = '✕';  // 展开时显示关闭图标
-                }
+                btn.innerHTML = sidebar.classList.contains('sidebar-collapsed') ? '☰' : '✕';
             }
         }
     }
 
-    // 初始化切换按钮
     function initSidebarToggle() {
-        // 检查是否已存在按钮
-        let btn = parent.document.querySelector('.sidebar-toggle-btn');
-        if (btn) {
-            return; // 已存在，不重复创建
-        }
+        if (parent.document.querySelector('.sidebar-toggle-btn')) return;
         
-        btn = parent.document.createElement('button');
+        const btn = parent.document.createElement('button');
         btn.className = 'sidebar-toggle-btn';
-        btn.innerHTML = '☰';  // 默认显示菜单图标
+        btn.innerHTML = '☰';
         btn.onclick = toggleSidebar;
         btn.setAttribute('aria-label', '切换侧边栏');
-        
         parent.document.body.appendChild(btn);
         
-        // 移动端默认隐藏侧边栏
         if (window.innerWidth <= 768) {
             const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
-            if (sidebar) {
-                sidebar.classList.add('sidebar-collapsed');
-            }
+            if (sidebar) sidebar.classList.add('sidebar-collapsed');
         }
     }
 
-    // 监听窗口大小变化
     function handleResize() {
         const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
         const btn = parent.document.querySelector('.sidebar-toggle-btn');
         
         if (window.innerWidth > 768) {
-            // 桌面端：显示侧边栏
-            if (sidebar) {
-                sidebar.classList.remove('sidebar-collapsed');
-            }
+            if (sidebar) sidebar.classList.remove('sidebar-collapsed');
         } else {
-            // 移动端：默认隐藏
             if (sidebar && !sidebar.classList.contains('sidebar-collapsed')) {
                 sidebar.classList.add('sidebar-collapsed');
             }
-            if (btn) {
-                btn.innerHTML = '☰';
-            }
+            if (btn) btn.innerHTML = '☰';
         }
     }
 
-    // 延迟初始化，确保 DOM 已加载
     setTimeout(function() {
         initSidebarToggle();
         window.addEventListener('resize', handleResize);
     }, 100);
     
-    // 处理 Streamlit 重新渲染
     const observer = new MutationObserver(function() {
         if (!parent.document.querySelector('.sidebar-toggle-btn')) {
             initSidebarToggle();
@@ -1607,4 +1583,4 @@ st.markdown("""
     });
 })();
 </script>
-""", unsafe_allow_html=True)
+""", height=0, width=0)
