@@ -10,3 +10,6 @@ openpyxl
 python-docx
 PyPDF2
 numpy
+
+# 云数据库支持
+supabase

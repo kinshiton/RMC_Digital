@@ -1,6 +1,7 @@
 """
 GuardNova 知识库系统
 支持 RAG（Retrieval Augmented Generation）智能检索
+支持 Supabase 云数据库持久化存储
 """
 
 import sqlite3
@@ -17,11 +18,28 @@ import PyPDF2
 import numpy as np
 import os
 
+# 导入 Supabase 适配器
+try:
+    from .supabase_adapter import get_supabase_adapter
+    SUPABASE_SUPPORT = True
+except:
+    SUPABASE_SUPPORT = False
+
 class KnowledgeBase:
     def __init__(self, db_path: str = "data/knowledge_base.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_database()
+        
+        # 初始化 Supabase 支持
+        self.supabase = None
+        if SUPABASE_SUPPORT:
+            try:
+                self.supabase = get_supabase_adapter()
+                if self.supabase.enabled:
+                    print("✅ 知识库已连接到 Supabase 云数据库")
+            except Exception as e:
+                print(f"⚠️ Supabase 初始化失败，使用本地数据库: {e}")
     
     def _init_database(self):
         """初始化数据库"""
@@ -61,6 +79,7 @@ class KnowledgeBase:
     
     def add_text_knowledge(self, title: str, content: str, tags: str = "") -> int:
         """添加文本知识并自动生成embedding"""
+        # 1. 保存到本地 SQLite
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -73,7 +92,15 @@ class KnowledgeBase:
         conn.commit()
         conn.close()
         
-        # 异步生成 embedding（不阻塞主流程）
+        # 2. 同步到 Supabase 云数据库
+        if self.supabase and self.supabase.enabled:
+            try:
+                self.supabase.add_knowledge_item(title, content, "text", tags=tags)
+                print("✅ 知识已同步到云端")
+            except Exception as e:
+                print(f"⚠️ 云端同步失败（本地已保存）: {e}")
+        
+        # 3. 异步生成 embedding（不阻塞主流程）
         try:
             self.update_embedding(knowledge_id)
         except Exception as e:
