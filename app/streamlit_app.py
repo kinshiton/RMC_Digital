@@ -53,12 +53,12 @@ footer {visibility: hidden;}
 header {visibility: hidden;}
 .stDeployButton {display: none;}
 
-/* 隐藏侧边栏收缩按钮 - 永久展开 */
+/* 隐藏 Streamlit 默认的侧边栏收缩按钮 */
 button[data-testid="baseButton-header"] {
     display: none !important;
 }
 
-/* 侧边栏永久展开 - 强制宽度 */
+/* 侧边栏基础样式 */
 section[data-testid="stSidebar"] {
     background-color: #fafafa !important;
     border-right: 1px solid #e5e7eb !important;
@@ -66,19 +66,31 @@ section[data-testid="stSidebar"] {
     width: 260px !important;
     min-width: 260px !important;
     max-width: 260px !important;
-    display: block !important;
-    visibility: visible !important;
-    transform: translateX(0) !important;
     position: relative !important;
-    flex: 0 0 260px !important;
+    transition: transform 0.3s ease, width 0.3s ease !important;
 }
 
-/* 侧边栏收起状态也强制展开 */
-section[data-testid="stSidebar"][aria-expanded="false"] {
-    width: 260px !important;
-    min-width: 260px !important;
-    max-width: 260px !important;
-    transform: translateX(0) !important;
+/* 侧边栏隐藏状态（通过自定义类控制） */
+section[data-testid="stSidebar"].sidebar-collapsed {
+    transform: translateX(-260px) !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}
+
+/* 移动端优化 - 侧边栏覆盖在内容上方 */
+@media (max-width: 768px) {
+    section[data-testid="stSidebar"] {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        height: 100vh !important;
+        z-index: 999 !important;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.1) !important;
+    }
+    
+    section[data-testid="stSidebar"].sidebar-collapsed {
+        transform: translateX(-100%) !important;
+    }
 }
 
 section[data-testid="stSidebar"] > div {
@@ -517,6 +529,55 @@ st.markdown("""
     background: #e5e7eb !important;
 }
 
+/* 侧边栏切换按钮 */
+.sidebar-toggle-btn {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1000;
+    background: #007AFF;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+    font-size: 20px;
+}
+
+.sidebar-toggle-btn:hover {
+    background: #0051D5;
+    transform: scale(1.05);
+}
+
+.sidebar-toggle-btn:active {
+    transform: scale(0.95);
+}
+
+/* 桌面端隐藏切换按钮 */
+@media (min-width: 769px) {
+    .sidebar-toggle-btn {
+        display: none !important;
+    }
+}
+
+/* 移动端显示切换按钮 */
+@media (max-width: 768px) {
+    .sidebar-toggle-btn {
+        display: flex !important;
+    }
+    
+    /* 侧边栏展开时，按钮在侧边栏内 */
+    section[data-testid="stSidebar"]:not(.sidebar-collapsed) ~ .stMainBlockContainer .sidebar-toggle-btn {
+        left: 220px;
+    }
+}
+
 /* 知识库模态框样式 */
 .knowledge-modal {
     position: fixed;
@@ -541,6 +602,82 @@ st.markdown("""
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 </style>
+
+<script>
+// 侧边栏切换功能
+function toggleSidebar() {
+    const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+    if (sidebar) {
+        sidebar.classList.toggle('sidebar-collapsed');
+        
+        // 更新按钮图标
+        const btn = window.parent.document.querySelector('.sidebar-toggle-btn');
+        if (btn) {
+            if (sidebar.classList.contains('sidebar-collapsed')) {
+                btn.innerHTML = '☰';  // 隐藏时显示菜单图标
+            } else {
+                btn.innerHTML = '✕';  // 展开时显示关闭图标
+            }
+        }
+    }
+}
+
+// 初始化切换按钮
+function initSidebarToggle() {
+    const existingBtn = window.parent.document.querySelector('.sidebar-toggle-btn');
+    if (existingBtn) {
+        existingBtn.remove();
+    }
+    
+    const btn = window.parent.document.createElement('button');
+    btn.className = 'sidebar-toggle-btn';
+    btn.innerHTML = '☰';  // 默认显示菜单图标
+    btn.onclick = toggleSidebar;
+    
+    const mainContainer = window.parent.document.querySelector('.stMainBlockContainer');
+    if (mainContainer) {
+        mainContainer.appendChild(btn);
+    } else {
+        window.parent.document.body.appendChild(btn);
+    }
+    
+    // 默认在移动端隐藏侧边栏
+    if (window.innerWidth <= 768) {
+        const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (sidebar && !sidebar.classList.contains('sidebar-collapsed')) {
+            sidebar.classList.add('sidebar-collapsed');
+        }
+    }
+}
+
+// 页面加载完成后初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSidebarToggle);
+} else {
+    initSidebarToggle();
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', function() {
+    const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+    const btn = window.parent.document.querySelector('.sidebar-toggle-btn');
+    
+    if (window.innerWidth > 768) {
+        // 桌面端：移除折叠类，显示侧边栏
+        if (sidebar) {
+            sidebar.classList.remove('sidebar-collapsed');
+        }
+    } else {
+        // 移动端：默认隐藏
+        if (sidebar && !sidebar.classList.contains('sidebar-collapsed')) {
+            sidebar.classList.add('sidebar-collapsed');
+        }
+        if (btn) {
+            btn.innerHTML = '☰';
+        }
+    }
+});
+</script>
 """, unsafe_allow_html=True)
 
 # ===== 可选：密码认证 =====
@@ -561,6 +698,10 @@ if 'knowledge_items' not in st.session_state:
 
 if 'show_knowledge_manager' not in st.session_state:
     st.session_state.show_knowledge_manager = False
+
+# 侧边栏显示/隐藏状态
+if 'sidebar_collapsed' not in st.session_state:
+    st.session_state.sidebar_collapsed = False
 
 # 初始化知识库
 if 'kb' not in st.session_state:
@@ -1376,3 +1517,94 @@ if not st.session_state.show_knowledge_manager:
         st.session_state.clear_input = True
         st.warning("未配置 API Key：请在 Secrets 中添加 DEEPSEEK_API_KEY")
         st.rerun()
+
+# ===== 侧边栏切换功能注入 =====
+# 在页面底部注入侧边栏切换的 JavaScript
+st.markdown("""
+<div id="sidebar-toggle-injector" style="display:none;"></div>
+<script>
+(function() {
+    // 侧边栏切换功能
+    function toggleSidebar() {
+        const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
+        if (sidebar) {
+            sidebar.classList.toggle('sidebar-collapsed');
+            
+            // 更新按钮图标
+            const btn = parent.document.querySelector('.sidebar-toggle-btn');
+            if (btn) {
+                if (sidebar.classList.contains('sidebar-collapsed')) {
+                    btn.innerHTML = '☰';  // 隐藏时显示菜单图标
+                } else {
+                    btn.innerHTML = '✕';  // 展开时显示关闭图标
+                }
+            }
+        }
+    }
+
+    // 初始化切换按钮
+    function initSidebarToggle() {
+        // 检查是否已存在按钮
+        let btn = parent.document.querySelector('.sidebar-toggle-btn');
+        if (btn) {
+            return; // 已存在，不重复创建
+        }
+        
+        btn = parent.document.createElement('button');
+        btn.className = 'sidebar-toggle-btn';
+        btn.innerHTML = '☰';  // 默认显示菜单图标
+        btn.onclick = toggleSidebar;
+        btn.setAttribute('aria-label', '切换侧边栏');
+        
+        parent.document.body.appendChild(btn);
+        
+        // 移动端默认隐藏侧边栏
+        if (window.innerWidth <= 768) {
+            const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
+            if (sidebar) {
+                sidebar.classList.add('sidebar-collapsed');
+            }
+        }
+    }
+
+    // 监听窗口大小变化
+    function handleResize() {
+        const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
+        const btn = parent.document.querySelector('.sidebar-toggle-btn');
+        
+        if (window.innerWidth > 768) {
+            // 桌面端：显示侧边栏
+            if (sidebar) {
+                sidebar.classList.remove('sidebar-collapsed');
+            }
+        } else {
+            // 移动端：默认隐藏
+            if (sidebar && !sidebar.classList.contains('sidebar-collapsed')) {
+                sidebar.classList.add('sidebar-collapsed');
+            }
+            if (btn) {
+                btn.innerHTML = '☰';
+            }
+        }
+    }
+
+    // 延迟初始化，确保 DOM 已加载
+    setTimeout(function() {
+        initSidebarToggle();
+        window.addEventListener('resize', handleResize);
+    }, 100);
+    
+    // 处理 Streamlit 重新渲染
+    const observer = new MutationObserver(function() {
+        if (!parent.document.querySelector('.sidebar-toggle-btn')) {
+            initSidebarToggle();
+        }
+    });
+    
+    observer.observe(parent.document.body, {
+        childList: true,
+        subtree: true
+    });
+})();
+</script>
+""", unsafe_allow_html=True)
