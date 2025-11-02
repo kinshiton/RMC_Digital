@@ -37,9 +37,15 @@ env/
 .streamlit/secrets.toml
 
 # Database (敏感数据不上传)
-*.db
+# 注意：知识库和对话历史数据库需要提交以保持持久化
+# *.db
 *.sqlite
 *.sqlite3
+
+# 但排除临时数据库
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Logs
 *.log
