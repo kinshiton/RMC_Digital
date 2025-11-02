@@ -4,6 +4,7 @@ GuardNova - AI 智能助手
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime, timedelta
 import json
@@ -66,30 +67,36 @@ section[data-testid="stSidebar"] {
     width: 260px !important;
     min-width: 260px !important;
     max-width: 260px !important;
-    position: relative !important;
-    transition: transform 0.3s ease, width 0.3s ease !important;
+    transition: transform 0.3s ease !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 999 !important;
+    transform: translateX(0) !important;
 }
 
-/* 侧边栏隐藏状态（通过自定义类控制） */
+/* 侧边栏隐藏状态 */
 section[data-testid="stSidebar"].sidebar-collapsed {
-    transform: translateX(-260px) !important;
-    width: 0 !important;
-    min-width: 0 !important;
+    transform: translateX(-100%) !important;
 }
 
-/* 移动端优化 - 侧边栏覆盖在内容上方 */
-@media (max-width: 768px) {
+/* 桌面端：侧边栏不覆盖内容 */
+@media (min-width: 769px) {
     section[data-testid="stSidebar"] {
-        position: fixed !important;
-        left: 0 !important;
-        top: 0 !important;
-        height: 100vh !important;
-        z-index: 999 !important;
-        box-shadow: 2px 0 8px rgba(0,0,0,0.1) !important;
+        position: relative !important;
+        transform: translateX(0) !important;
     }
     
     section[data-testid="stSidebar"].sidebar-collapsed {
-        transform: translateX(-100%) !important;
+        transform: translateX(-260px) !important;
+    }
+}
+
+/* 移动端：侧边栏覆盖在内容上方，带阴影 */
+@media (max-width: 768px) {
+    section[data-testid="stSidebar"] {
+        box-shadow: 2px 0 8px rgba(0,0,0,0.1) !important;
     }
 }
 
@@ -529,52 +536,42 @@ st.markdown("""
     background: #e5e7eb !important;
 }
 
-/* 侧边栏切换按钮 */
+/* 侧边栏切换按钮 - 始终显示 */
 .sidebar-toggle-btn {
-    position: fixed;
-    top: 16px;
-    left: 16px;
-    z-index: 1000;
-    background: #007AFF;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    transition: all 0.3s ease;
-    font-size: 20px;
+    position: fixed !important;
+    top: 16px !important;
+    left: 16px !important;
+    z-index: 1000 !important;
+    background: #007AFF !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    width: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+    transition: all 0.3s ease !important;
+    font-size: 20px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .sidebar-toggle-btn:hover {
-    background: #0051D5;
-    transform: scale(1.05);
+    background: #0051D5 !important;
+    transform: scale(1.05) !important;
 }
 
 .sidebar-toggle-btn:active {
-    transform: scale(0.95);
+    transform: scale(0.95) !important;
 }
 
-/* 桌面端隐藏切换按钮 */
-@media (min-width: 769px) {
-    .sidebar-toggle-btn {
-        display: none !important;
-    }
-}
-
-/* 移动端显示切换按钮 */
+/* 移动端优化 */
 @media (max-width: 768px) {
     .sidebar-toggle-btn {
-        display: flex !important;
-    }
-    
-    /* 侧边栏展开时，按钮在侧边栏内 */
-    section[data-testid="stSidebar"]:not(.sidebar-collapsed) ~ .stMainBlockContainer .sidebar-toggle-btn {
-        left: 220px;
+        opacity: 1 !important;
     }
 }
 
@@ -1519,68 +1516,90 @@ if not st.session_state.show_knowledge_manager:
         st.rerun()
 
 # ===== 侧边栏切换功能注入 =====
-# 使用 HTML component 注入 JavaScript (不会显示在页面上)
-import streamlit.components.v1 as components
-
+# 使用 HTML component 注入 JavaScript
 components.html("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
 <script>
 (function() {
-    function toggleSidebar() {
-        const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
+    console.log('侧边栏切换脚本开始执行...');
+    
+    function toggleSidebar(event) {
+        console.log('切换侧边栏被点击');
+        
+        // 阻止事件冒泡
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+        const btn = window.parent.document.querySelector('.sidebar-toggle-btn');
+        
+        console.log('侧边栏元素:', sidebar);
+        console.log('按钮元素:', btn);
+        
         if (sidebar) {
             sidebar.classList.toggle('sidebar-collapsed');
-            const btn = parent.document.querySelector('.sidebar-toggle-btn');
+            const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+            
             if (btn) {
-                btn.innerHTML = sidebar.classList.contains('sidebar-collapsed') ? '☰' : '✕';
+                btn.innerHTML = isCollapsed ? '☰' : '✕';
+                console.log('按钮图标已更新为:', isCollapsed ? '☰' : '✕');
             }
+            
+            console.log('侧边栏状态:', isCollapsed ? '隐藏' : '显示');
+        } else {
+            console.error('未找到侧边栏元素');
         }
+        
+        return false;
     }
 
     function initSidebarToggle() {
-        if (parent.document.querySelector('.sidebar-toggle-btn')) return;
+        console.log('初始化侧边栏切换按钮...');
+        console.log('当前窗口宽度:', window.innerWidth);
         
-        const btn = parent.document.createElement('button');
+        // 检查是否已存在按钮
+        if (window.parent.document.querySelector('.sidebar-toggle-btn')) {
+            console.log('按钮已存在，跳过创建');
+            return;
+        }
+        
+        // 创建按钮
+        const btn = window.parent.document.createElement('button');
         btn.className = 'sidebar-toggle-btn';
         btn.innerHTML = '☰';
-        btn.onclick = toggleSidebar;
         btn.setAttribute('aria-label', '切换侧边栏');
-        parent.document.body.appendChild(btn);
+        btn.setAttribute('type', 'button');
         
+        // 使用 addEventListener 绑定点击事件
+        btn.addEventListener('click', toggleSidebar);
+        
+        window.parent.document.body.appendChild(btn);
+        console.log('切换按钮已创建并添加到页面');
+        
+        // 移动端默认隐藏侧边栏
         if (window.innerWidth <= 768) {
-            const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
-            if (sidebar) sidebar.classList.add('sidebar-collapsed');
-        }
-    }
-
-    function handleResize() {
-        const sidebar = parent.document.querySelector('section[data-testid="stSidebar"]');
-        const btn = parent.document.querySelector('.sidebar-toggle-btn');
-        
-        if (window.innerWidth > 768) {
-            if (sidebar) sidebar.classList.remove('sidebar-collapsed');
-        } else {
-            if (sidebar && !sidebar.classList.contains('sidebar-collapsed')) {
+            const sidebar = window.parent.document.querySelector('section[data-testid="stSidebar"]');
+            if (sidebar) {
                 sidebar.classList.add('sidebar-collapsed');
+                console.log('移动端：默认隐藏侧边栏');
             }
-            if (btn) btn.innerHTML = '☰';
         }
     }
 
+    // 延迟初始化，确保 DOM 已加载
     setTimeout(function() {
         initSidebarToggle();
-        window.addEventListener('resize', handleResize);
-    }, 100);
-    
-    const observer = new MutationObserver(function() {
-        if (!parent.document.querySelector('.sidebar-toggle-btn')) {
-            initSidebarToggle();
-        }
-    });
-    
-    observer.observe(parent.document.body, {
-        childList: true,
-        subtree: true
-    });
+        console.log('侧边栏切换功能初始化完成');
+    }, 500);
 })();
 </script>
-""", height=0, width=0)
+</body>
+</html>
+""", height=0)
