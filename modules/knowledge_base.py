@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from docx import Document
 import PyPDF2
+import numpy as np
+import os
 
 class KnowledgeBase:
     def __init__(self, db_path: str = "data/knowledge_base.db"):
@@ -58,7 +60,7 @@ class KnowledgeBase:
         conn.close()
     
     def add_text_knowledge(self, title: str, content: str, tags: str = "") -> int:
-        """添加文本知识"""
+        """添加文本知识并自动生成embedding"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -71,10 +73,16 @@ class KnowledgeBase:
         conn.commit()
         conn.close()
         
+        # 异步生成 embedding（不阻塞主流程）
+        try:
+            self.update_embedding(knowledge_id)
+        except Exception as e:
+            print(f"生成 embedding 失败（不影响保存）: {e}")
+        
         return knowledge_id
     
     def add_file_knowledge(self, title: str, file_path: str, description: str = "", tags: str = "") -> int:
-        """添加文件知识并解析内容"""
+        """添加文件知识并解析内容，自动生成embedding"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -89,6 +97,12 @@ class KnowledgeBase:
         knowledge_id = cursor.lastrowid
         conn.commit()
         conn.close()
+        
+        # 异步生成 embedding
+        try:
+            self.update_embedding(knowledge_id)
+        except Exception as e:
+            print(f"生成 embedding 失败（不影响保存）: {e}")
         
         return knowledge_id
     
@@ -234,7 +248,7 @@ class KnowledgeBase:
             return f"{description}\n\n文件解析失败：{str(e)}" if description else f"PDF文件：{file_path.name}（解析失败）"
     
     def add_url_knowledge(self, title: str, url: str, description: str = "", tags: str = "") -> int:
-        """添加链接知识（RAG 网页爬取）"""
+        """添加链接知识（RAG 网页爬取），自动生成embedding"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -251,6 +265,12 @@ class KnowledgeBase:
         knowledge_id = cursor.lastrowid
         conn.commit()
         conn.close()
+        
+        # 异步生成 embedding
+        try:
+            self.update_embedding(knowledge_id)
+        except Exception as e:
+            print(f"生成 embedding 失败（不影响保存）: {e}")
         
         return knowledge_id
     
@@ -457,4 +477,266 @@ class KnowledgeBase:
             return answer
         except Exception as e:
             return f"抱歉，生成回答时出现错误：{str(e)}"
+    
+    # ============ 向量搜索功能 (Embeddings) ============
+    
+    def _get_openai_client(self):
+        """动态导入并初始化 OpenAI 客户端（用于 embedding）"""
+        try:
+            import importlib
+            openai_module = importlib.import_module('openai')
+            
+            # 获取 API Key - 优先使用 OPENAI_API_KEY（因为 embedding 需要）
+            api_key = os.getenv('OPENAI_API_KEY') or os.getenv('DEEPSEEK_API_KEY')
+            if not api_key:
+                return None
+            
+            # 使用标准 OpenAI API（embedding 功能）
+            client = openai_module.OpenAI(api_key=api_key)
+            return client
+        except Exception as e:
+            print(f"初始化 OpenAI 客户端失败: {e}")
+            return None
+    
+    def generate_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        生成文本的 embedding 向量
+        使用 DeepSeek 的 embedding 模型
+        """
+        try:
+            client = self._get_openai_client()
+            if not client:
+                print("无法初始化 OpenAI 客户端，跳过 embedding 生成")
+                return None
+            
+            # 截断过长的文本（embedding 模型通常有长度限制）
+            max_length = 8000  # DeepSeek embedding 模型的最大长度
+            if len(text) > max_length:
+                text = text[:max_length]
+            
+            # 调用 embedding API
+            response = client.embeddings.create(
+                model="text-embedding-ada-002",  # 或使用 DeepSeek 的 embedding 模型
+                input=text
+            )
+            
+            embedding = response.data[0].embedding
+            return embedding
+        
+        except Exception as e:
+            print(f"生成 embedding 失败: {e}")
+            return None
+    
+    def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """
+        计算两个向量的余弦相似度
+        返回值范围: -1 到 1，越接近 1 表示越相似
+        """
+        try:
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            return float(dot_product / (norm1 * norm2))
+        except Exception as e:
+            print(f"计算余弦相似度失败: {e}")
+            return 0.0
+    
+    def update_embedding(self, item_id: int) -> bool:
+        """
+        为指定的知识条目生成并更新 embedding
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 获取知识条目
+            cursor.execute("""
+            SELECT title, content FROM knowledge_items WHERE id = ?
+            """, (item_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return False
+            
+            title, content = row
+            
+            # 生成 embedding（标题 + 内容）
+            text_to_embed = f"{title}\n{content}"
+            embedding = self.generate_embedding(text_to_embed)
+            
+            if embedding is None:
+                conn.close()
+                return False
+            
+            # 存储为 JSON 字符串
+            embedding_json = json.dumps(embedding)
+            
+            # 更新数据库
+            cursor.execute("""
+            UPDATE knowledge_items 
+            SET embedding_vector = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """, (embedding_json, item_id))
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ 已为知识条目 {item_id} 生成 embedding")
+            return True
+        
+        except Exception as e:
+            print(f"更新 embedding 失败: {e}")
+            return False
+    
+    def update_all_embeddings(self) -> Dict[str, int]:
+        """
+        为所有没有 embedding 的知识条目生成向量
+        返回统计信息
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 查找所有没有 embedding 的条目
+            cursor.execute("""
+            SELECT id FROM knowledge_items 
+            WHERE embedding_vector IS NULL OR embedding_vector = ''
+            """)
+            
+            items_to_update = cursor.fetchall()
+            conn.close()
+            
+            success_count = 0
+            fail_count = 0
+            
+            for (item_id,) in items_to_update:
+                if self.update_embedding(item_id):
+                    success_count += 1
+                else:
+                    fail_count += 1
+            
+            return {
+                'total': len(items_to_update),
+                'success': success_count,
+                'failed': fail_count
+            }
+        
+        except Exception as e:
+            print(f"批量更新 embeddings 失败: {e}")
+            return {'total': 0, 'success': 0, 'failed': 0}
+    
+    def vector_search(self, query: str, limit: int = 5, threshold: float = 0.5) -> List[Dict]:
+        """
+        基于向量相似度的语义搜索
+        
+        Args:
+            query: 查询文本
+            limit: 返回结果数量
+            threshold: 相似度阈值（0-1），低于此值的结果会被过滤
+        
+        Returns:
+            按相似度排序的知识条目列表
+        """
+        try:
+            # 1. 生成查询的 embedding
+            query_embedding = self.generate_embedding(query)
+            if query_embedding is None:
+                print("无法生成查询 embedding，回退到关键词搜索")
+                return self.search_knowledge(query, limit)
+            
+            # 2. 获取所有有 embedding 的知识条目
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+            SELECT id, title, content, content_type, file_path, external_url, tags, 
+                   embedding_vector, created_at
+            FROM knowledge_items
+            WHERE embedding_vector IS NOT NULL AND embedding_vector != ''
+            """)
+            
+            results = []
+            for row in cursor.fetchall():
+                item_id, title, content, content_type, file_path, external_url, tags, embedding_json, created_at = row
+                
+                # 解析 embedding
+                try:
+                    item_embedding = json.loads(embedding_json)
+                except:
+                    continue
+                
+                # 计算相似度
+                similarity = self.cosine_similarity(query_embedding, item_embedding)
+                
+                # 过滤低相似度结果
+                if similarity >= threshold:
+                    results.append({
+                        'id': item_id,
+                        'title': title,
+                        'content': content,
+                        'content_type': content_type,
+                        'file_path': file_path,
+                        'external_url': external_url,
+                        'tags': tags,
+                        'created_at': created_at,
+                        'similarity': similarity
+                    })
+            
+            conn.close()
+            
+            # 3. 按相似度降序排序
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            
+            # 4. 返回 top-k 结果
+            return results[:limit]
+        
+        except Exception as e:
+            print(f"向量搜索失败: {e}")
+            # 回退到关键词搜索
+            return self.search_knowledge(query, limit)
+    
+    def hybrid_search(self, query: str, limit: int = 5) -> List[Dict]:
+        """
+        混合搜索：结合关键词搜索和向量搜索
+        
+        策略：
+        1. 先进行向量搜索（语义匹配）
+        2. 如果向量搜索结果不足，补充关键词搜索结果
+        3. 去重并返回
+        """
+        try:
+            # 1. 向量搜索
+            vector_results = self.vector_search(query, limit=limit, threshold=0.5)
+            
+            # 2. 如果向量搜索结果充足，直接返回
+            if len(vector_results) >= limit:
+                return vector_results
+            
+            # 3. 补充关键词搜索
+            keyword_results = self.search_knowledge(query, limit=limit * 2)
+            
+            # 4. 合并结果（去重）
+            seen_ids = {item['id'] for item in vector_results}
+            combined_results = vector_results.copy()
+            
+            for item in keyword_results:
+                if item['id'] not in seen_ids and len(combined_results) < limit:
+                    # 为关键词搜索结果添加一个默认相似度
+                    item['similarity'] = 0.3
+                    combined_results.append(item)
+                    seen_ids.add(item['id'])
+            
+            return combined_results
+        
+        except Exception as e:
+            print(f"混合搜索失败: {e}")
+            return self.search_knowledge(query, limit)
 

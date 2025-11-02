@@ -17,6 +17,7 @@ import uuid
 sys.path.append(str(Path(__file__).parent.parent))
 from modules.knowledge_base import KnowledgeBase
 from modules.conversation_manager import ConversationManager
+from modules.auth import check_password  # 可选的密码认证
 
 # 尝试在顶层导入 openai 以满足静态检查器；运行时若不存在则延迟加载并给出友好提示
 try:
@@ -89,13 +90,14 @@ section[data-testid="stSidebar"] > div > div {
     padding: 0.75rem !important;
 }
 
-/* 侧边栏按钮确保完整显示 */
+/* 侧边栏按钮确保完整显示 - 文字单行 */
 section[data-testid="stSidebar"] .stButton > button {
     width: 100% !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 15px !important;
 }
 
 /* 品牌标识 */
@@ -125,6 +127,15 @@ section[data-testid="stSidebar"] .stButton {
 
 section[data-testid="stSidebar"] > div > div:first-child {
     padding-top: 0 !important;
+}
+
+/* 确保按钮图标和文字在同一行 */
+section[data-testid="stSidebar"] .stButton > button > div {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    gap: 0.25rem !important;
 }
 
 /* 侧边栏按钮样式 */
@@ -532,6 +543,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ===== 可选：密码认证 =====
+# 如果在 secrets.toml 中设置了 APP_PASSWORD，则需要密码才能访问
+# 如果不需要密码保护，请注释掉下面这两行，或删除 secrets.toml 中的 APP_PASSWORD
+# if not check_password():
+#     st.stop()  # 未通过认证，停止执行后续代码
+
 # ===== 初始化 Session State =====
 if 'conversations' not in st.session_state:
     st.session_state.conversations = []
@@ -876,7 +893,18 @@ if st.session_state.show_knowledge_manager:
         st.markdown("---")
         
         # 显示知识列表
-        st.markdown("### 📖 已有知识")
+        col_title, col_vector_btn = st.columns([3, 1])
+        with col_title:
+            st.markdown("### 📖 已有知识")
+        with col_vector_btn:
+            if st.button("🔄 生成向量", help="为所有知识生成语义向量，提升搜索准确度"):
+                with st.spinner("正在生成向量..."):
+                    kb = st.session_state.kb
+                    result = kb.update_all_embeddings()
+                    if result['total'] > 0:
+                        st.success(f"✅ 成功生成 {result['success']} 个向量（共 {result['total']} 个）")
+                    else:
+                        st.info("所有知识已有向量，无需重新生成")
         
         try:
             kb = st.session_state.kb
@@ -1161,9 +1189,10 @@ if not st.session_state.show_knowledge_manager:
                 
                 client = openai_module.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
                 
-                # === RAG 集成：先搜索知识库 ===
+                # === RAG 集成：先搜索知识库（使用混合搜索：向量+关键词） ===
                 kb = st.session_state.kb
-                search_results = kb.search_knowledge(question_to_send, limit=3) if kb else []
+                # 使用混合搜索，结合语义和关键词匹配
+                search_results = kb.hybrid_search(question_to_send, limit=3) if kb else []
                 
                 # 调试信息
                 print(f"[DEBUG] 搜索问题: {question_to_send}")

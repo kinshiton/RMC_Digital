@@ -9,3 +9,4 @@ tabulate
 openpyxl
 python-docx
 PyPDF2
+numpy
