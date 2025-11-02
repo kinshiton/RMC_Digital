@@ -52,16 +52,50 @@ footer {visibility: hidden;}
 header {visibility: hidden;}
 .stDeployButton {display: none;}
 
-/* 侧边栏样式 - 完全模仿 DeepSeek */
+/* 隐藏侧边栏收缩按钮 - 永久展开 */
+button[data-testid="baseButton-header"] {
+    display: none !important;
+}
+
+/* 侧边栏永久展开 - 强制宽度 */
 section[data-testid="stSidebar"] {
-    background-color: #fafafa;
-    border-right: 1px solid #e5e7eb;
+    background-color: #fafafa !important;
+    border-right: 1px solid #e5e7eb !important;
     padding: 0 !important;
     width: 260px !important;
+    min-width: 260px !important;
+    max-width: 260px !important;
+    display: block !important;
+    visibility: visible !important;
+    transform: translateX(0) !important;
+    position: relative !important;
+    flex: 0 0 260px !important;
+}
+
+/* 侧边栏收起状态也强制展开 */
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    width: 260px !important;
+    min-width: 260px !important;
+    max-width: 260px !important;
+    transform: translateX(0) !important;
 }
 
 section[data-testid="stSidebar"] > div {
-    padding: 0;
+    padding: 0 !important;
+}
+
+/* 侧边栏内容区域 - 确保按钮有足够空间 */
+section[data-testid="stSidebar"] > div > div {
+    padding: 0.75rem !important;
+}
+
+/* 侧边栏按钮确保完整显示 */
+section[data-testid="stSidebar"] .stButton > button {
+    width: 100% !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
 }
 
 /* 品牌标识 */
@@ -410,7 +444,47 @@ section[data-testid="stSidebar"] .streamlit-expanderContent {
     border: none !important;
     padding: 0.5rem 1rem !important;
 }
+</style>
+""", unsafe_allow_html=True)
 
+# JavaScript 强制显示侧边栏
+st.markdown("""
+<script>
+// 强制显示侧边栏并设置正确宽度
+function showSidebar() {
+    const sidebar = document.querySelector('[data-testid="stSidebar"]');
+    if (sidebar) {
+        sidebar.style.width = '260px';
+        sidebar.style.minWidth = '260px';
+        sidebar.style.maxWidth = '260px';
+        sidebar.style.display = 'block';
+        sidebar.style.visibility = 'visible';
+        sidebar.style.transform = 'translateX(0)';
+        sidebar.style.position = 'relative';
+        sidebar.style.flex = '0 0 260px';
+        sidebar.setAttribute('aria-expanded', 'true');
+    }
+    
+    // 如果有展开按钮，点击它
+    const expandBtn = document.querySelector('[data-testid="collapsedControl"]');
+    if (expandBtn && sidebar && sidebar.getAttribute('aria-expanded') === 'false') {
+        expandBtn.click();
+    }
+}
+
+// 立即执行
+showSidebar();
+
+// 延迟执行确保生效
+setTimeout(showSidebar, 100);
+setTimeout(showSidebar, 500);
+setTimeout(showSidebar, 1000);
+setTimeout(showSidebar, 2000);
+</script>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
 /* 按钮通用样式 */
 .stButton > button:not([kind="primary"]) {
     background: #f3f4f6 !important;
@@ -997,11 +1071,14 @@ if not st.session_state.show_knowledge_manager:
     col_input, col_send = st.columns([20, 1])
     
     with col_input:
-        # 检查是否有待发送的快捷问题
+        # 检查是否有待发送的快捷问题或需要清空
         default_value = ""
         if 'pending_question' in st.session_state and st.session_state.pending_question:
             default_value = st.session_state.pending_question
             st.session_state.pending_question = None
+        elif 'clear_input' in st.session_state and st.session_state.clear_input:
+            default_value = ""
+            st.session_state.clear_input = False
         
         user_question = st.text_area(
             "消息",
@@ -1088,106 +1165,151 @@ if not st.session_state.show_knowledge_manager:
                 kb = st.session_state.kb
                 search_results = kb.search_knowledge(question_to_send, limit=3) if kb else []
                 
-                # 构建系统提示词
+                # 调试信息
+                print(f"[DEBUG] 搜索问题: {question_to_send}")
+                print(f"[DEBUG] 搜索结果数量: {len(search_results)}")
                 if search_results:
-                    # 有知识库结果，使用 RAG 模式
-                    context = "\n\n".join([
-                        f"【知识 {i+1}】{item['title']}\n{item['content'][:500]}"
-                        for i, item in enumerate(search_results)
-                    ])
+                    for idx, item in enumerate(search_results):
+                        print(f"[DEBUG] 结果 {idx+1}: 标题={item['title']}, 内容长度={len(item['content'])}")
+                
+                # 判断知识库内容是否足够充分
+                use_knowledge_only = False
+                full_response = ""
+                
+                if search_results:
+                    # 检查知识库内容的相关性和完整性
+                    # 简单策略：如果找到的知识总字数超过50字，认为足够充分
+                    total_content_length = sum(len(item['content']) for item in search_results)
+                    print(f"[DEBUG] 总内容长度: {total_content_length}, 阈值: 50")
                     
-                    system_prompt = f"""你是 GuardNova AI 智能助手。
+                    if total_content_length > 50:
+                        # 知识库内容充分，直接使用，不调用 AI
+                        use_knowledge_only = True
+                        
+                        # 构建基于知识库的回答
+                        kb_answer_parts = ["📚 **根据知识库内容为您解答：**\n"]
+                        
+                        for i, item in enumerate(search_results):
+                            kb_answer_parts.append(f"\n**{i+1}. {item['title']}**")
+                            # 显示完整内容（不截断）
+                            kb_answer_parts.append(f"\n{item['content']}\n")
+                        
+                        kb_answer_parts.append("\n---\n💡 *以上内容来自知识库，无需消耗 API 额度*")
+                        
+                        full_response = "\n".join(kb_answer_parts)
+                
+                # 显示回答
+                with st.chat_message("assistant"):
+                    response_placeholder = st.empty()
+                    
+                    if use_knowledge_only:
+                        # 直接显示知识库内容（无打字机效果，适合长文本/表格）
+                        with response_placeholder.container():
+                            render_message_with_code(full_response)
+                        
+                        # 保存知识库回答到数据库
+                        cm.add_message(current_conv['id'], "assistant", full_response)
+                        
+                        # 重置状态并清空输入框
+                        st.session_state.is_generating = False
+                        st.session_state.clear_input = True
+                        st.rerun()
+                    else:
+                        # 需要调用 AI
+                        # 构建系统提示词
+                        if search_results:
+                            context = "\n\n".join([
+                                f"【知识 {i+1}】{item['title']}\n{item['content'][:500]}"
+                                for i, item in enumerate(search_results)
+                            ])
+                            
+                            system_prompt = f"""你是 GuardNova AI 智能助手。
 
-📚 **知识库检索结果** (RAG):
+📚 **知识库检索到部分相关内容** (但可能不够完整):
 
 {context}
 
 **回答指南:**
-1. 优先基于知识库内容回答问题
-2. 如果知识库内容足够，直接引用并整理
-3. 如果知识库内容不足，结合你的通用知识补充
-4. 在回答末尾注明信息来源（知识库/通用知识）
+1. 参考知识库内容，但由于内容不够充分，请结合你的通用知识进行补充
+2. 提供完整、专业的回答
+3. 在回答末尾注明信息来源
 
 请用专业、友好的语气回答用户问题。"""
-                else:
-                    # 没有知识库结果，使用通用模式
-                    system_prompt = "你是 GuardNova，一个专业、友好的 AI 智能助手。"
-                
-                # 构建消息列表
-                messages = [
-                    {"role": "system", "content": system_prompt}
-                ]
-                
-                for msg in current_conv['messages'][-10:]:
-                    messages.append({"role": msg["role"], "content": msg["content"]})
-                
-                # 流式显示
-                with st.chat_message("assistant"):
-                    response_placeholder = st.empty()
-                    full_response = ""
-                    
-                    stream = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=2000,
-                        stream=True
-                    )
-                    
-                    for chunk in stream:
-                        if chunk.choices[0].delta.content is not None:
-                            full_response += chunk.choices[0].delta.content
-                            response_placeholder.markdown(full_response + "▌")
+                        else:
+                            # 没有知识库结果，使用通用模式
+                            system_prompt = "你是 GuardNova，一个专业、友好的 AI 智能助手。"
                         
-                        # 检查是否停止
-                        if not st.session_state.is_generating:
-                            break
-                    
-                    # 显示回答（支持代码格式化）
-                    response_placeholder.empty()
-                    
-                    # 使用自定义渲染函数显示回答
-                    with response_placeholder.container():
-                        render_message_with_code(full_response)
+                        # 构建消息列表
+                        messages = [
+                            {"role": "system", "content": system_prompt}
+                        ]
                         
-                        # 添加知识来源标注（带下载链接）
-                        if search_results:
-                            st.markdown("---")
-                            st.markdown("📚 **参考知识:**")
+                        for msg in current_conv['messages'][-10:]:
+                            messages.append({"role": msg["role"], "content": msg["content"]})
+                        
+                        # 流式调用 AI
+                        stream = client.chat.completions.create(
+                            model=model,
+                            messages=messages,
+                            temperature=0.7,
+                            max_tokens=2000,
+                            stream=True
+                        )
+                        
+                        for chunk in stream:
+                            if chunk.choices[0].delta.content is not None:
+                                full_response += chunk.choices[0].delta.content
+                                response_placeholder.markdown(full_response + "▌")
                             
-                            for item in search_results:
-                                col_info, col_download = st.columns([4, 1])
-                                
-                                with col_info:
-                                    type_icon = {'text': '📝', 'file': '📄', 'url': '🔗'}.get(item['content_type'], '📄')
-                                    st.markdown(f"{type_icon} **{item['title']}** ({item['content_type']})")
-                                
-                                with col_download:
-                                    # 如果是文件类型，提供下载按钮
-                                    if item['content_type'] == 'file' and item.get('file_path'):
-                                        try:
-                                            file_path = Path(item['file_path'])
-                                            if file_path.exists():
-                                                with open(file_path, 'rb') as f:
-                                                    st.download_button(
-                                                        "📥",
-                                                        data=f.read(),
-                                                        file_name=file_path.name,
-                                                        key=f"dl_stream_{item['id']}",
-                                                        help="下载文件"
-                                                    )
-                                        except:
-                                            pass
-                                    # 如果是链接类型，显示访问按钮
-                                    elif item['content_type'] == 'url' and item.get('external_url'):
-                                        st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
+                            # 检查是否停止
+                            if not st.session_state.is_generating:
+                                break
+                        
+                        # 显示回答（支持代码格式化）
+                        response_placeholder.empty()
+                        
+                        # 使用自定义渲染函数显示回答
+                        with response_placeholder.container():
+                            render_message_with_code(full_response)
+                    
+                    # 添加知识来源标注（带下载链接）- 对于 AI 回答显示参考来源
+                    if search_results and not use_knowledge_only:
+                        st.markdown("---")
+                        st.markdown("📚 **参考知识:**")
+                        
+                        for item in search_results:
+                            col_info, col_download = st.columns([4, 1])
+                            
+                            with col_info:
+                                type_icon = {'text': '📝', 'file': '📄', 'url': '🔗'}.get(item['content_type'], '📄')
+                                st.markdown(f"{type_icon} **{item['title']}** ({item['content_type']})")
+                            
+                            with col_download:
+                                # 如果是文件类型，提供下载按钮
+                                if item['content_type'] == 'file' and item.get('file_path'):
+                                    try:
+                                        file_path = Path(item['file_path'])
+                                        if file_path.exists():
+                                            with open(file_path, 'rb') as f:
+                                                st.download_button(
+                                                    "📥",
+                                                    data=f.read(),
+                                                    file_name=file_path.name,
+                                                    key=f"dl_stream_{item['id']}",
+                                                    help="下载文件"
+                                                )
+                                    except:
+                                        pass
+                                # 如果是链接类型，显示访问按钮
+                                elif item['content_type'] == 'url' and item.get('external_url'):
+                                    st.markdown(f"[🔗]({item['external_url']})", unsafe_allow_html=True)
                 
                 # 保存 AI 回复到数据库
                 cm.add_message(current_conv['id'], "assistant", full_response)
                 
-                # 重置生成状态并清空输入框
+                # 重置生成状态并标记清空输入框
                 st.session_state.is_generating = False
-                st.session_state["user_input"] = ""
+                st.session_state.clear_input = True
                 st.rerun()
                 
             except Exception as e:
@@ -1198,14 +1320,13 @@ if not st.session_state.show_knowledge_manager:
                 if cm and current_conv:
                     cm.add_message(current_conv['id'], "assistant", error_msg)
                 
-                # 清空输入框
-                st.session_state["user_input"] = ""
+                st.session_state.clear_input = True
                 st.error(f"❌ {str(e)}")
                 st.rerun()
         else:
             # 对话管理器未初始化
             st.session_state.is_generating = False
-            st.session_state["user_input"] = ""
+            st.session_state.clear_input = True
             st.error("❌ 对话管理器未初始化，请刷新页面重试")
     elif send_button and user_question and user_question.strip() and not has_api:
         # 无 API Key 时也要保存用户问题，并给出清晰提示，让对话区可见
@@ -1222,8 +1343,7 @@ if not st.session_state.show_knowledge_manager:
                     "assistant",
                     "⚠️ 未检测到可用的 API Key。请在 Streamlit Secrets 中设置 `DEEPSEEK_API_KEY` 后再试。"
                 )
-        # 清空输入框
-        st.session_state["user_input"] = ""
         st.session_state.is_generating = False
+        st.session_state.clear_input = True
         st.warning("未配置 API Key：请在 Secrets 中添加 DEEPSEEK_API_KEY")
         st.rerun()

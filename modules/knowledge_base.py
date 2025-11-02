@@ -11,6 +11,9 @@ import hashlib
 from typing import List, Dict, Optional
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
+from docx import Document
+import PyPDF2
 
 class KnowledgeBase:
     def __init__(self, db_path: str = "data/knowledge_base.db"):
@@ -71,21 +74,12 @@ class KnowledgeBase:
         return knowledge_id
     
     def add_file_knowledge(self, title: str, file_path: str, description: str = "", tags: str = "") -> int:
-        """添加文件知识"""
+        """添加文件知识并解析内容"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # 读取文件内容
-        try:
-            file_path_obj = Path(file_path)
-            if file_path_obj.suffix.lower() == '.txt':
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            else:
-                # 对于其他文件类型，暂时只存储描述
-                content = description or f"文件：{file_path_obj.name}"
-        except Exception as e:
-            content = description or f"文件：{file_path}"
+        # 解析文件内容
+        content = self._parse_file_content(file_path, description)
         
         cursor.execute("""
         INSERT INTO knowledge_items (title, content, content_type, file_path, tags)
@@ -97,6 +91,147 @@ class KnowledgeBase:
         conn.close()
         
         return knowledge_id
+    
+    def _parse_file_content(self, file_path: str, description: str = "") -> str:
+        """解析文件内容为Markdown格式"""
+        try:
+            file_path_obj = Path(file_path)
+            suffix = file_path_obj.suffix.lower()
+            
+            # Excel 文件
+            if suffix in ['.xlsx', '.xls', '.csv']:
+                return self._parse_excel(file_path_obj, description)
+            
+            # Word 文件
+            elif suffix in ['.docx', '.doc']:
+                return self._parse_word(file_path_obj, description)
+            
+            # PDF 文件
+            elif suffix == '.pdf':
+                return self._parse_pdf(file_path_obj, description)
+            
+            # 文本文件
+            elif suffix in ['.txt', '.md']:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if description:
+                    return f"{description}\n\n{content}"
+                return content
+            
+            else:
+                return description or f"文件：{file_path_obj.name}"
+        
+        except Exception as e:
+            print(f"解析文件失败：{e}")
+            return description or f"文件：{file_path}"
+    
+    def _parse_excel(self, file_path: Path, description: str = "") -> str:
+        """解析Excel文件为Markdown表格"""
+        try:
+            # 读取Excel文件
+            if file_path.suffix == '.csv':
+                df = pd.read_csv(file_path)
+            else:
+                df = pd.read_excel(file_path)
+            
+            # 转换为Markdown格式
+            markdown_parts = []
+            
+            if description:
+                markdown_parts.append(f"{description}\n")
+            
+            markdown_parts.append(f"**文件名：** {file_path.name}")
+            markdown_parts.append(f"**数据行数：** {len(df)} 行")
+            markdown_parts.append(f"**列数：** {len(df.columns)} 列")
+            markdown_parts.append(f"**列名：** {', '.join(df.columns.tolist())}\n")
+            
+            # 转换为Markdown表格（限制前20行，避免内容过长）
+            display_rows = min(20, len(df))
+            markdown_table = df.head(display_rows).to_markdown(index=False)
+            
+            markdown_parts.append("**数据内容：**\n")
+            markdown_parts.append(markdown_table)
+            
+            if len(df) > display_rows:
+                markdown_parts.append(f"\n*（表格共 {len(df)} 行，以上显示前 {display_rows} 行）*")
+            
+            # 添加数据摘要
+            markdown_parts.append("\n**数据摘要：**")
+            for col in df.columns[:5]:  # 只显示前5列的摘要
+                if df[col].dtype in ['int64', 'float64']:
+                    markdown_parts.append(f"- {col}: 数值范围 {df[col].min()} ~ {df[col].max()}")
+                else:
+                    unique_count = df[col].nunique()
+                    markdown_parts.append(f"- {col}: {unique_count} 个不同值")
+            
+            return "\n".join(markdown_parts)
+        
+        except Exception as e:
+            return f"{description}\n\n文件解析失败：{str(e)}" if description else f"Excel文件：{file_path.name}（解析失败）"
+    
+    def _parse_word(self, file_path: Path, description: str = "") -> str:
+        """解析Word文档内容"""
+        try:
+            doc = Document(file_path)
+            
+            markdown_parts = []
+            
+            if description:
+                markdown_parts.append(f"{description}\n")
+            
+            markdown_parts.append(f"**文件名：** {file_path.name}\n")
+            
+            # 提取文本内容
+            full_text = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    full_text.append(para.text)
+            
+            if full_text:
+                markdown_parts.append("\n**文档内容：**\n")
+                markdown_parts.append("\n\n".join(full_text))
+            
+            return "\n".join(markdown_parts)
+        
+        except Exception as e:
+            return f"{description}\n\n文件解析失败：{str(e)}" if description else f"Word文档：{file_path.name}（解析失败）"
+    
+    def _parse_pdf(self, file_path: Path, description: str = "") -> str:
+        """解析PDF文件内容"""
+        try:
+            markdown_parts = []
+            
+            if description:
+                markdown_parts.append(f"{description}\n")
+            
+            markdown_parts.append(f"**文件名：** {file_path.name}\n")
+            
+            # 读取PDF
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                num_pages = len(reader.pages)
+                
+                markdown_parts.append(f"**页数：** {num_pages}\n")
+                
+                # 提取前10页文本
+                text_parts = []
+                for i in range(min(10, num_pages)):
+                    page = reader.pages[i]
+                    text = page.extract_text()
+                    if text.strip():
+                        text_parts.append(f"### 第 {i+1} 页\n{text}")
+                
+                if text_parts:
+                    markdown_parts.append("\n**文档内容：**\n")
+                    markdown_parts.append("\n\n".join(text_parts))
+                
+                if num_pages > 10:
+                    markdown_parts.append(f"\n\n*（共 {num_pages} 页，仅显示前10页）*")
+            
+            return "\n".join(markdown_parts)
+        
+        except Exception as e:
+            return f"{description}\n\n文件解析失败：{str(e)}" if description else f"PDF文件：{file_path.name}（解析失败）"
     
     def add_url_knowledge(self, title: str, url: str, description: str = "", tags: str = "") -> int:
         """添加链接知识（RAG 网页爬取）"""
@@ -182,10 +317,20 @@ class KnowledgeBase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # 分词搜索
-        keywords = query.lower().split()
+        # 改进的分词策略：过滤停用词，提取关键词
+        stopwords = {'是', '的', '了', '在', '有', '和', '就', '不', '人', '我', '他', '她', '们',
+                     '什么', '怎么', '如何', '为什么', '吗', '呢', '啊', '吧', '么', '哪', '哪里',
+                     '一个', '这个', '那个', '这些', '那些', '什', '么', '意思', '定义'}
         
-        # 构建搜索条件
+        # 分词并过滤
+        words = query.lower().split()
+        keywords = [w for w in words if w not in stopwords and len(w) > 1]
+        
+        # 如果过滤后没有关键词，使用原始查询
+        if not keywords:
+            keywords = [query.lower()]
+        
+        # 构建搜索条件（使用 OR，但每个关键词都要匹配到标题、内容或标签）
         search_conditions = []
         search_params = []
         

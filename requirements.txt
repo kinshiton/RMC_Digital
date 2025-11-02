@@ -5,3 +5,7 @@ plotly
 openai
 beautifulsoup4
 requests
+tabulate
+openpyxl
+python-docx
+PyPDF2
